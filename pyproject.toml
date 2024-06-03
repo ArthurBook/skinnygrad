@@ -1,18 +1,25 @@
 [tool.poetry]
-name = ""
+name = "barebones-ml"
 version = "0.1.0"
-description = ""
+description = "Various ML architectures written from scratch in PyTorch"
 authors = ["Arthur <atte.book@gmail.com>"]
 readme = "README.md"
+package-mode = false
 
 [tool.poetry.dependencies]
 python = "^3.9"
+numpy = "^1.26.4"
+torch = "^2.3.0"
 
 [tool.poetry.group.dev.dependencies]
 black = "^24.4.2"
 isort = "^5.13.2"
 mypy = "^1.10.0"
 pylint = "^3.1.0"
+
+
+[tool.poetry.group.test.dependencies]
+pytest = "^8.2.1"
 
 [build-system]
 requires = ["poetry-core"]
