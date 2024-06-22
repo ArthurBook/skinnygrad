@@ -1,0 +1,26 @@
+[tool.poetry]
+name = "autodiff"
+version = "0.1.0"
+description = "autodiff engine with interchangeable backend"
+authors = ["Arthur <atte.book@gmail.com>"]
+readme = "README.md"
+packages = [{ include = "autodiff", from = "./src/" }]
+
+[tool.poetry.dependencies]
+python = "^3.11"
+
+[tool.poetry.group.dev.dependencies]
+black = "^24.4.2"
+isort = "^5.13.2"
+mypy = "^1.10.0"
+pylint = "^3.1.0"
+
+[tool.black]
+line-length = 100
+
+[tool.poetry.group.test.dependencies]
+pytest = "^8.2.1"
+
+[build-system]
+requires = ["poetry-core"]
+build-backend = "poetry.core.masonry.api"
