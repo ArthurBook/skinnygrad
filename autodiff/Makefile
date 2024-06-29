@@ -15,7 +15,7 @@ fmt: # Formats the code in the src/ and tests/ directories using black.
 
 .PHONY: lint
 lint: # Lints the code in the src/ and tests/ directories using pylint.
-	poetry run pylint src/ tests/
+	poetry run pylint src/ tests/ --rcfile=pyproject.toml src/autodiff/graph.py
 
 .PHONY: typecheck
 typecheck: # Performs type checking in the src/ and tests/ directories using mypy.
