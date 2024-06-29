@@ -8,6 +8,7 @@ packages = [{ include = "autodiff", from = "./src/" }]
 
 [tool.poetry.dependencies]
 python = "^3.11"
+numpy = "^2.0.0"
 
 [tool.poetry.group.dev.dependencies]
 black = "^24.4.2"
@@ -18,8 +19,22 @@ pylint = "^3.1.0"
 [tool.black]
 line-length = 100
 
+[tool.pylint]
+disable = [
+    'C0103', # Invalid name
+    'C0115', # Missing function or method docstring
+    'C0116', # Missing class docstring
+    'R0903', # Too few public methods
+]
+
 [tool.poetry.group.test.dependencies]
 pytest = "^8.2.1"
+tinygrad = "^0.9.0"
+
+[tool.mypy]
+disable_error_code = [
+    "syntax" # complains about non-mypy related type-ignores
+]
 
 [build-system]
 requires = ["poetry-core"]
