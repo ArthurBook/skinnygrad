@@ -53,7 +53,11 @@ class Symbol(Generic[RefType]):
 class Shape(Sequence[int]):
     dims: tuple[int, ...]
 
-    def __getitem__(self, index: int) -> int:
+    @overload
+    def __getitem__(self, index: slice) -> tuple[int, ...]: ...
+    @overload
+    def __getitem__(self, index: int) -> int: ...
+    def __getitem__(self, index: int | slice) -> int | tuple[int, ...]:
         return self.dims[index]
 
     def __eq__(self, other: object) -> bool:
@@ -64,6 +68,9 @@ class Shape(Sequence[int]):
 
     def __str__(self) -> str:
         return f"Shape({', '.join(map(str, self.dims))})"
+
+    def __bool__(self) -> bool:
+        return len(self.dims) > 0
 
     def __len__(self) -> int:
         return len(self.dims)
@@ -82,7 +89,14 @@ class Shape(Sequence[int]):
             assert a == 1 or b == 1 or a == b, f"Cannot broadcast between {self=} <--> {other=}"
         return Shape(tuple(max(a, b) for a, b in zip(self, other)))
 
+    def permute(self, axes: Sequence[int]) -> Shape:
+        return Shape(tuple(self[i] for i in axes))
+
+    def addaxis(self, axis: int) -> Shape:
+        return Shape(self.dims[:axis] + (1,) + self.dims[axis:])
+
     def dropaxis(self, axis: int) -> Shape:
+        axis = axis % len(self)
         return Shape(tuple(d for i, d in enumerate(self) if i != axis))
 
     def lpad(self, n: int) -> Shape:
@@ -109,6 +123,7 @@ class ControlOps(enum.Enum):
     LOAD = enum.auto()  # create the tensor from an init instruction
     RESHAPE = enum.auto()  # reshape the tensor
     EXPAND = enum.auto()  # broadcast the tensor
+    PERMUTE = enum.auto()  # permute the tensor
     ASSIGN = enum.auto()  # elementwise assign from one tensor to another (shapes must match)
     REALIZED = enum.auto()  # do nothing. used for realized vertices
 
@@ -119,20 +134,25 @@ class ControlOps(enum.Enum):
     @overload
     def __call__(self: Literal[ControlOps.EXPAND], src: Symbol, shape: Shape, /) -> Symbol: ...
     @overload
+    def __call__(
+        self: Literal[ControlOps.PERMUTE], src: Symbol, axes: Sequence[int], /
+    ) -> Symbol: ...
+    @overload
     def __call__(self: Literal[ControlOps.ASSIGN], target: Symbol, src: Symbol, /) -> Symbol: ...
     def __call__(self, *args) -> Symbol:
         if self is ControlOps.LOAD:
             assert isinstance(src := args[0], (int, float, bool, Sequence)), f"Unknown {src=}"
             return Symbol(self, src=(), args=(src,), shape=Shape.from_data(src))
-        if self is ControlOps.RESHAPE:
-            assert isinstance(src := args[0], Symbol), f"{src=} is not a Symbol"
-            assert isinstance(shape := args[1], Shape), f"{shape=} is not a Shape"
-            assert len(src.shape) == len(shape), f"{src.shape=} != {shape=}"
-            return Symbol(self, src=(src,), args=(shape.dims,), shape=shape)
-        if self is ControlOps.EXPAND:
+        if self in (ControlOps.RESHAPE, ControlOps.EXPAND):
             assert isinstance(src := args[0], Symbol), f"{src=} is not a Symbol"
             assert isinstance(shape := args[1], Shape), f"{shape=} is not a Shape"
             return Symbol(self, src=(src,), args=(shape.dims,), shape=shape)
+        if self is ControlOps.PERMUTE:
+            assert isinstance(src := args[0], Symbol), f"{src=} is not a Symbol"
+            assert isinstance(axes := args[1], Sequence), f"{axes=} is not a Sequence"
+            assert len(axes) == len(shape := src.shape), f"{axes=} don't match {shape=} len"
+            assert set(axes).issubset(range(-len(shape), len(shape))), f"Bad {axes=} for {shape=}"
+            return Symbol(self, src=(src,), args=(axes,), shape=shape.permute(axes))
         if self is ControlOps.ASSIGN:
             assert isinstance(src := args[0], Symbol), f"{src=} is not a Symbol"
             assert isinstance(target := args[1], Symbol), f"{target=} is not a Symbol"

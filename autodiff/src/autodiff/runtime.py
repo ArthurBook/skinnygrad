@@ -59,6 +59,7 @@ class NumPyEngine(SequentialEngine[np.ndarray]):
         llops.ControlOps.ASSIGN: lambda target, src: (np.copyto(target, src), target)[1],
         llops.ControlOps.RESHAPE: np.reshape,
         llops.ControlOps.EXPAND: np.broadcast_to,
+        llops.ControlOps.PERMUTE: np.transpose,
         ### unary ###
         llops.UnaryOps.NEG: np.negative,
         ### binary ###
