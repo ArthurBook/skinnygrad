@@ -54,10 +54,11 @@ class SequentialEngine(Engine[RefType], abc.ABC):
 ### Numpy as default engine implementation ###
 class NumPyEngine(SequentialEngine[np.ndarray]):
     __OPS_MAP__ = {
-        ### memory ###
+        ### control ###
         llops.ControlOps.LOAD: np.array,
         llops.ControlOps.ASSIGN: lambda target, src: (np.copyto(target, src), target)[1],
-        llops.ControlOps.VIEW: np.reshape,
+        llops.ControlOps.RESHAPE: np.reshape,
+        llops.ControlOps.EXPAND: np.broadcast_to,
         ### unary ###
         llops.UnaryOps.NEG: np.negative,
         ### binary ###
