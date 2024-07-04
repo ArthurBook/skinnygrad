@@ -109,9 +109,8 @@ class Shape(Sequence[int]):
             new_dims.insert(ax, 1)
         return Shape(tuple(new_dims))
 
-    def dropaxes(self, axes: Sequence[int]) -> Shape:
-        max_axis = len(self)
-        pos_axes = set(ax % max_axis for ax in axes)
+    def dropaxes(self, *axes: int) -> Shape:
+        pos_axes = set(self.normalize_idxs(*axes))
         return Shape(tuple(d for i, d in enumerate(self) if i not in pos_axes))
 
     def lpad(self, n: int) -> Shape:
@@ -119,6 +118,10 @@ class Shape(Sequence[int]):
 
     def flat(self) -> Shape:
         return Shape((self.size,))
+
+    def normalize_idxs(self, *idxs: int) -> tuple[int, ...]:
+        own_len = len(self)
+        return tuple(idx % own_len for idx in sorted(idxs, reverse=True))
 
     @property
     def ndims(self) -> int:
@@ -218,7 +221,7 @@ class ReduceOps(enum.Enum):  # reduce a along axis=int f(a:A)->b:B
     def __call__(self, src: Symbol, axes: Sequence[int]) -> Symbol:
         assert isinstance(axes, Sequence), f"{axes=} is not a sequence"
         assert set(axes).issubset(range(-len(src.shape), len(src.shape))), f"Bad {axes=}"
-        return Symbol(self, src=(src,), args=(axes,), shape=src.shape.dropaxes(axes))
+        return Symbol(self, src=(src,), args=(axes,), shape=src.shape.dropaxes(*axes))
 
 
 ## These are all the ops that the backend must support

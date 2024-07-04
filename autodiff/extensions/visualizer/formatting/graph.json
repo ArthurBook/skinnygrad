@@ -1,5 +1,6 @@
 {
     "directed": true,
     "bgcolor": "none",
-    "rankdir": "BT"
+    "rankdir": "BT",
+    "ratio": "1"
 }

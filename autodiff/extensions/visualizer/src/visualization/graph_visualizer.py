@@ -31,6 +31,9 @@ class GraphVisualizer(callbacks.OnSymbolInitCallBack, callbacks.OnCtxExitCallBac
         self.output_path = output_path
         self.graph = pgv.AGraph(**self.graph_format[None])
 
+    def write_dot(self, path: str | os.PathLike) -> None:
+        self.graph.draw(path, prog="dot", format="png")
+
     def on_symbol_creation(self, symbol: llops.Symbol) -> None:
         op_fmt = self.opnode_formatter.get_fmt(type(symbol.op), symbol.op)
         op_nodename = _get_op_nodename(symbol)
@@ -44,7 +47,7 @@ class GraphVisualizer(callbacks.OnSymbolInitCallBack, callbacks.OnCtxExitCallBac
             self.graph.add_edge(_get_data_nodename(in_edge), op_nodename, **edge_fmt)
 
     def on_ctx_exit(self, exc_type: Any, exc_value: Any, traceback: Any) -> None:
-        self.graph.draw(self.output_path, prog="dot", format="png")
+        self.write_dot(self.output_path)
 
 
 def _get_op_nodename(symbol: llops.Symbol) -> str:
