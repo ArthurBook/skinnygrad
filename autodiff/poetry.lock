@@ -96,6 +96,22 @@ graph = ["objgraph (>=1.7.2)"]
 profile = ["gprof2dot (>=2022.7.29)"]
 
 [[package]]
+name = "graphviz"
+version = "0.20.3"
+description = "Simple Python interface for Graphviz"
+optional = true
+python-versions = ">=3.8"
+files = [
+    {file = "graphviz-0.20.3-py3-none-any.whl", hash = "sha256:81f848f2904515d8cd359cc611faba817598d2feaac4027b266aa3eda7b3dde5"},
+    {file = "graphviz-0.20.3.zip", hash = "sha256:09d6bc81e6a9fa392e7ba52135a9d49f1ed62526f96499325930e87ca1b5925d"},
+]
+
+[package.extras]
+dev = ["flake8", "pep8-naming", "tox (>=3)", "twine", "wheel"]
+docs = ["sphinx (>=5,<7)", "sphinx-autodoc-typehints", "sphinx-rtd-theme"]
+test = ["coverage", "pytest (>=7,<8.1)", "pytest-cov", "pytest-mock (>=3)"]
+
+[[package]]
 name = "iniconfig"
 version = "2.0.0"
 description = "brain-dead simple config-ini parsing"
@@ -429,6 +445,22 @@ pluggy = ">=1.5,<2.0"
 dev = ["argcomplete", "attrs (>=19.2)", "hypothesis (>=3.56)", "mock", "pygments (>=2.7.2)", "requests", "setuptools", "xmlschema"]
 
 [[package]]
+name = "tinydiff-logger"
+version = "0.1.0"
+description = "logger for the tinydiff package"
+optional = true
+python-versions = "^3.11"
+files = []
+develop = true
+
+[package.dependencies]
+tinydiff = {path = "../.."}
+
+[package.source]
+type = "directory"
+url = "extensions/logger"
+
+[[package]]
 name = "tinydiff-visualizer"
 version = "0.1.0"
 description = "visualizer for the tinydiff package"
@@ -438,6 +470,7 @@ files = []
 develop = true
 
 [package.dependencies]
+graphviz = "^0.20.3"
 pygraphviz = "^1.13"
 tinydiff = {path = "../.."}
 
@@ -493,9 +526,10 @@ files = [
 ]
 
 [extras]
+logger = ["tinydiff-logger"]
 visualizer = ["tinydiff-visualizer"]
 
 [metadata]
 lock-version = "2.0"
 python-versions = "^3.11"
-content-hash = "8398296e47cb699fce58f1f173529fa8511bf28c000ae1ee309d988cc561315e"
+content-hash = "2ec4ff8063c7c2653e323c08a2bf65e0a85cfd21e79a9257aee06b4b8be45052"

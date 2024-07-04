@@ -23,8 +23,7 @@ typecheck: # Performs type checking in the src/ and tests/ directories using myp
 
 .PHONY: test
 test: # Runs automated tests using pytest.
-	export PYTHONPATH=./src/:$PYTHONPATH
-	poetry run pytest
+	TINYDIFF_LOGLEVEL=DEBUG PYTHONPATH=./src/:$PYTHONPATH poetry run pytest
 
 .PHONY: linecount
 linecount: # Counts the number of lines of Python code in the src/ directory.

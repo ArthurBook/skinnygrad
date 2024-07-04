@@ -9,9 +9,11 @@ packages = [{ include = "autodiff", from = "./src/" }]
 [tool.poetry.dependencies]
 python = "^3.11"
 numpy = "^2.0.0"
+tinydiff-logger = {path = "./extensions/logger", optional = true, develop = true}
 tinydiff-visualizer = {path = "./extensions/visualizer", optional = true, develop = true}
 
 [tool.poetry.extras]
+logger = ["tinydiff-logger"]
 visualizer = ["tinydiff-visualizer"]
 
 [tool.poetry.group.dev.dependencies]

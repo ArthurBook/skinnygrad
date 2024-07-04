@@ -10,7 +10,7 @@ def test_numpy_engine_add_reduce() -> None:
         x = llops.ControlOps.LOAD([1, 2, 3])
         y = llops.ControlOps.LOAD([1, 2, 3])
         z = llops.BinaryOps.MUL(x, y)  # 1, 4, 9
-        z_sum = llops.ReduceOps.SUM(z, axis=0)  # 14
+        z_sum = llops.ReduceOps.SUM(z, axes=(0,))  # 14
         res = z_sum.realize().to_python()
     assert res == 14
 
