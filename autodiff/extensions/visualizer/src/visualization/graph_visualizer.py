@@ -5,13 +5,12 @@ from typing import Any
 import pygraphviz as pgv
 from visualization import formatting
 
-from autodiff import config, llops
-
+from autodiff import callbacks, llops
 
 FORMATS_DIR = pathlib.Path(__file__).parent.parent.parent / "formatting"
 
 
-class GraphVisualizer(config.OnSymbolInitCallBack, config.OnCtxExitCallBack):
+class GraphVisualizer(callbacks.OnSymbolInitCallBack, callbacks.OnCtxExitCallBack):
     graph_format = formatting.ElementFormatter(
         (None, formatting.FormatSpec.from_path(FORMATS_DIR / "graph.json")),
     )

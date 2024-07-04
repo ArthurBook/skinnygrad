@@ -1,0 +1,1 @@
+# Visualizer tool for the tinydiff package

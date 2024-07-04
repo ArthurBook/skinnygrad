@@ -4,7 +4,7 @@ version = "0.1.0"
 description = "visualizer for the tinydiff package"
 authors = ["Arthur <atte.book@gmail.com>"]
 readme = "README.md"
-packages = [{include = "visualizer", from = "./src/"}]
+packages = [{include = "visualization", from = "./src/"}]
 
 [tool.poetry.dependencies]
 python = "^3.11"

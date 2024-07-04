@@ -93,6 +93,7 @@ develop = false
 numpy = "^2.0.0"
 
 [package.extras]
+logger = ["tinydiff-logger @ file:///Users/arthur/projects/barebones-architectures/autodiff/extensions/logger"]
 visualizer = ["tinydiff-visualizer @ file:///Users/arthur/projects/barebones-architectures/autodiff/extensions/visualizer"]
 
 [package.source]

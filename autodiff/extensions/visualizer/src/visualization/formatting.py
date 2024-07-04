@@ -1,12 +1,3 @@
-"""
-- Modify the __post_init__ to and add a callback that the config can set
-    - The graphviz hook will look something like:
-        1) add op node with id(symbol); for each src in symbol.srcs: add in edges
-        2) add f'{id(src)}_data' node with shape symbol.shape
-        
-- Graph context that describes what subgraph (if any) we are in
-"""
-
 from __future__ import annotations
 
 import collections
