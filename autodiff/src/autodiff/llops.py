@@ -23,7 +23,7 @@ PyArrayRepr = int | float | bool | Sequence["PyArrayRepr"]
 class Symbol(Generic[RefType]):
     """
     Vertex and its inbound edges in the computational graph
-    post execution, materialize as `NOOP` with `buffer` holding the result
+    post execution, materialize with `buffer` holding the result
     """
 
     op: LLOps
@@ -31,6 +31,14 @@ class Symbol(Generic[RefType]):
     shape: Shape
     args: tuple[Any, ...] = dataclasses.field(default_factory=tuple)
     _buffer: runtime.Buffer[RefType] | None = dataclasses.field(default=None)
+
+    def __repr__(self) -> str:
+        return (
+            f"<{self.__class__.__name__}("
+            f"{f'REALIZED' if self._buffer else f'UNREALIZED {self.op.name}'}, "
+            f"shape={self.shape.dims!r}"
+            ")>"
+        )
 
     def realize(self) -> runtime.Buffer[RefType]:
         if (buffer := self.buffer) is None:
@@ -73,7 +81,7 @@ class Shape(Sequence[int]):
         return len(self.dims) > 0
 
     def __len__(self) -> int:
-        return len(self.dims)
+        return self.ndims
 
     def __iter__(self) -> Iterator[int]:
         return iter(self.dims)
@@ -92,18 +100,26 @@ class Shape(Sequence[int]):
     def permute(self, axes: Sequence[int]) -> Shape:
         return Shape(tuple(self[i] for i in axes))
 
-    def addaxis(self, axis: int) -> Shape:
-        return Shape(self.dims[:axis] + (1,) + self.dims[axis:])
+    def addaxes(self, axes: Sequence[int]) -> Shape:
+        new_dims = list(self.dims)
+        for ax in sorted(axes, reverse=True):
+            new_dims.insert(ax, 1)
+        return Shape(tuple(new_dims))
 
-    def dropaxis(self, axis: int) -> Shape:
-        axis = axis % len(self)
-        return Shape(tuple(d for i, d in enumerate(self) if i != axis))
+    def dropaxes(self, axes: Sequence[int]) -> Shape:
+        max_axis = len(self)
+        pos_axes = set(ax % max_axis for ax in axes)
+        return Shape(tuple(d for i, d in enumerate(self) if i not in pos_axes))
 
     def lpad(self, n: int) -> Shape:
         return Shape((1,) * n + self.dims)
 
     def flat(self) -> Shape:
         return Shape((self.size,))
+
+    @property
+    def ndims(self) -> int:
+        return len(self.dims)
 
     @property
     def size(self) -> int:
@@ -196,9 +212,10 @@ class ReduceOps(enum.Enum):  # reduce a along axis=int f(a:A)->b:B
     SUM = enum.auto()  # sum along axis
     MAX = enum.auto()  # max along axis
 
-    def __call__(self, src: Symbol, axis: int) -> Symbol:
-        assert isinstance(axis, int), f"{axis=} is not an int"
-        return Symbol(self, src=(src,), args=(axis,), shape=src.shape.dropaxis(axis))
+    def __call__(self, src: Symbol, axes: Sequence[int]) -> Symbol:
+        assert isinstance(axes, Sequence), f"{axes=} is not a sequence"
+        assert set(axes).issubset(range(-len(src.shape), len(src.shape))), f"Bad {axes=}"
+        return Symbol(self, src=(src,), args=(axes,), shape=src.shape.dropaxes(axes))
 
 
 ## These are all the ops that the backend must support
