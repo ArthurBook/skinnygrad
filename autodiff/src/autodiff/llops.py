@@ -32,6 +32,9 @@ class Symbol(Generic[RefType]):
     args: tuple[Any, ...] = dataclasses.field(default_factory=tuple)
     _buffer: runtime.Buffer[RefType] | None = dataclasses.field(default=None)
 
+    def __post_init__(self) -> None:
+        config.Configuration.on_symbol_creation(self)
+
     def __repr__(self) -> str:
         return (
             f"<{self.__class__.__name__}("
@@ -222,8 +225,6 @@ class ReduceOps(enum.Enum):  # reduce a along axis=int f(a:A)->b:B
 LLOps = ControlOps | UnaryOps | BinaryOps | TernaryOps | ReduceOps
 
 
-###
-# Helpers
-###
+### Helpers ###
 def assert_shape_match(*shapes: Shape) -> None:
     assert all(shapes[0] == shape for shape in shapes[1:]), f"{shapes=} do not match"
