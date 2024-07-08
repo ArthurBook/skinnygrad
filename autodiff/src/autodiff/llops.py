@@ -64,12 +64,9 @@ class Symbol(Generic[RefType]):
 class Shape(Sequence[int]):
     dims: tuple[int, ...]
 
-    @overload
-    def __getitem__(self, index: slice) -> tuple[int, ...]: ...
-    @overload
-    def __getitem__(self, index: int) -> int: ...
-    def __getitem__(self, index: int | slice) -> int | tuple[int, ...]:
-        return self.dims[index]
+    def __getitem__(self, index: int | slice) -> Shape:
+        dims = self.dims[index]
+        return Shape((dims,) if isinstance(dims, int) else dims)
 
     def __eq__(self, other: object) -> bool:
         return isinstance(other, Shape) and self.dims == other.dims
@@ -101,20 +98,31 @@ class Shape(Sequence[int]):
         return Shape(tuple(max(a, b) for a, b in zip(self, other)))
 
     def permute(self, axes: Sequence[int]) -> Shape:
-        return Shape(tuple(self[i] for i in axes))
+        return Shape(tuple(self.dims[i] for i in axes))
 
-    def addaxes(self, axes: Sequence[int]) -> Shape:
-        new_dims = list(self.dims)
-        for ax in sorted(axes, reverse=True):
-            new_dims.insert(ax, 1)
-        return Shape(tuple(new_dims))
+    def swapaxes(self, ax1: int, ax2: int) -> Shape:
+        axes = list(range(len(self)))
+        axes[ax1], axes[ax2] = axes[ax2], axes[ax1]
+        return self.permute(axes)
+
+    def insertaxes(self, *axes: int) -> Shape:
+        new_axes = list(self)
+        for i in sorted(axes, reverse=True):
+            new_axes.insert(i, 1)
+        return Shape(tuple(new_axes))
+
+    def addaxes(self, idx: int, n_dims: int) -> Shape:
+        return Shape(self.dims[:idx] + (1,) * n_dims + self.dims[idx:])
+
+    def lpad(self, n_dims: int) -> Shape:
+        return self.addaxes(0, n_dims)
+
+    def rpad(self, n_dims: int) -> Shape:
+        return self.addaxes(len(self), n_dims)
 
     def dropaxes(self, *axes: int) -> Shape:
         pos_axes = set(self.normalize_idxs(*axes))
         return Shape(tuple(d for i, d in enumerate(self) if i not in pos_axes))
-
-    def lpad(self, n: int) -> Shape:
-        return Shape((1,) * n + self.dims)
 
     def flat(self) -> Shape:
         return Shape((self.size,))
@@ -133,11 +141,7 @@ class Shape(Sequence[int]):
 
     @classmethod
     def from_data(cls, data: PyArrayRepr, /) -> Shape:
-        return (
-            cls(tuple((len(data), *cls.from_data(data[0]))))
-            if isinstance(data, Sequence)
-            else cls(())
-        )
+        return cls(tuple((len(data), *cls.from_data(data[0])))) if isinstance(data, Sequence) else cls(())
 
 
 @enum.global_enum
@@ -156,9 +160,7 @@ class ControlOps(enum.Enum):
     @overload
     def __call__(self: Literal[ControlOps.EXPAND], src: Symbol, shape: Shape, /) -> Symbol: ...
     @overload
-    def __call__(
-        self: Literal[ControlOps.PERMUTE], src: Symbol, axes: Sequence[int], /
-    ) -> Symbol: ...
+    def __call__(self: Literal[ControlOps.PERMUTE], src: Symbol, axes: Sequence[int], /) -> Symbol: ...
     @overload
     def __call__(self: Literal[ControlOps.ASSIGN], target: Symbol, src: Symbol, /) -> Symbol: ...
     def __call__(self, *args) -> Symbol:
