@@ -1,0 +1,47 @@
+[tool.poetry]
+name = "tinydiff"
+version = "0.1.0"
+description = "autodiff engine with interchangeable backend"
+authors = ["Arthur <atte.book@gmail.com>"]
+readme = "README.md"
+packages = [{ include = "autodiff", from = "./src/" }]
+
+[tool.poetry.dependencies]
+python = "^3.11"
+numpy = "^2.0.0"
+tinydiff-logger = {path = "./extensions/logger", optional = true, develop = true}
+tinydiff-visualizer = {path = "./extensions/visualizer", optional = true, develop = true}
+
+[tool.poetry.extras]
+logger = ["tinydiff-logger"]
+visualizer = ["tinydiff-visualizer"]
+
+[tool.poetry.group.dev.dependencies]
+black = "^24.4.2"
+isort = "^5.13.2"
+mypy = "^1.10.0"
+pylint = "^3.1.0"
+
+[tool.black]
+line-length = 100
+
+[tool.pylint]
+disable = [
+    'C0103', # Invalid name
+    'C0115', # Missing function or method docstring
+    'C0116', # Missing class docstring
+    'R0903', # Too few public methods
+]
+
+[tool.poetry.group.test.dependencies]
+pytest = "^8.2.1"
+tinygrad = "^0.9.0"
+
+[tool.mypy]
+disable_error_code = [
+    "syntax" # complains about non-mypy related type-ignores
+]
+
+[build-system]
+requires = ["poetry-core"]
+build-backend = "poetry.core.masonry.api"
