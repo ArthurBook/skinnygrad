@@ -5,12 +5,13 @@ Autodifferentiation logic
 from __future__ import annotations
 
 import abc
+import copy
 import dataclasses
 import functools
 import inspect
 import itertools
 import typing
-from typing import Any, Callable, Concatenate, Generic, Iterator, ParamSpec, Self, Sequence, TypeVar, Union
+from typing import Callable, Concatenate, Generic, Iterator, ParamSpec, Self, Sequence, TypeVar, Union
 
 from autodiff import llops
 
@@ -88,7 +89,7 @@ def llop_gradient(grad_def: UnaryGradDefinition[P], /) -> UnaryAutoDiffFunc[T, P
 def llop_gradient(grad_def: BinaryGradDefinition[P], /) -> BinaryAutoDiffFunc[T, P]: ...
 @typing.overload
 def llop_gradient(grad_def: TernaryGradDefinition[P], /) -> TernaryAutoDiffFunc[T, P]: ...
-def llop_gradient(grad_def: Callable) -> Callable:
+def llop_gradient(grad_def: Callable[P, tuple[llops.Symbol, LazyGrad]]) -> Callable[P, AutoDiffable]:  # type: ignore
     """
     Turn the symbol-level def of forward & backward into an autodiffable function for tensors
     """
@@ -99,34 +100,37 @@ def llop_gradient(grad_def: Callable) -> Callable:
     autodiffable_args = tuple(k for k in sign.parameters if types[k] is llops.Symbol)
 
     @functools.wraps(grad_def)
-    def autodiffable_function(*args: Any, **kwargs: Any) -> AutoDiffable:
+    def autodiffable_function(*args: P.args, **kwargs: P.kwargs) -> AutoDiffable:
         (bound_args := sign.bind(*args, **kwargs)).apply_defaults()
         validate_autodiffable_args(bound_args)
         broadcast_autodiffable_args(bound_args)
-        srcs = list(iter_autodiffables(bound_args))
-        replace_autodiffables_with_symbols(bound_args)
-        new_symbol, *grads = grad_def(*bound_args.args, **bound_args.kwargs)
-        bps = (Backprop(f, tgt) for f, tgt in zip(grads, srcs, strict=True) if tgt.requires_grad)
-        return srcs[0].from_backprops(new_symbol, tuple(bps))
+        return create_output_autodiffable(bound_args)
 
     def validate_autodiffable_args(sign: inspect.BoundArguments) -> None:
-        for k, v in zip(autodiffable_args, iter_autodiffables(sign), strict=True):
-            sign.arguments[k] = v if isinstance(v, AutoDiffable) else AutoDiffable(v)
+        sign.arguments.update(zip(autodiffable_args, iter_autodiffables(sign), strict=True))
 
     def broadcast_autodiffable_args(sign: inspect.BoundArguments) -> None:
-        autodiffables = tuple(iter_autodiffables(sign))
-        common_shape = get_common_broadcast_shape(*autodiffables)
-        for k, ad in zip(autodiffable_args, autodiffables, strict=True):
-            assert isinstance(ad, AutoDiffable)
-            sign.arguments[k] = ad if ad.shape == common_shape else broadcast(ad, common_shape)
+        common_shape = get_common_broadcast_shape(*iter_autodiffables(sign))
+        sign.arguments.update(
+            (k, broadcast(ad, common_shape))
+            for k, ad in zip(autodiffable_args, iter_autodiffables(sign), strict=True)
+            if ad.shape != common_shape
+        )
 
-    def replace_autodiffables_with_symbols(sign: inspect.BoundArguments) -> None:
-        for k, v in zip(autodiffable_args, iter_autodiffables(sign), strict=True):
-            assert isinstance(v, AutoDiffable)
-            sign.arguments[k] = v.symbol
+    def create_output_autodiffable(sign: inspect.BoundArguments) -> AutoDiffable:
+        args_symbol = create_copy_with_symbols(sign)
+        new_symbol, *grads = grad_def(*args_symbol.args, **args_symbol.kwargs)
+        grads_with_targets = zip(grads, iter_autodiffables(sign), strict=True)
+        backprops = (Backprop(f, tgt) for f, tgt in grads_with_targets if tgt.requires_grad)
+        return next(iter_autodiffables(sign)).from_backprops(new_symbol, tuple(backprops))
 
-    def iter_autodiffables(bound_args: inspect.BoundArguments) -> Iterator[AutoDiffable | Any]:
-        return (bound_args.arguments[k] for k in autodiffable_args)
+    def create_copy_with_symbols(sign: inspect.BoundArguments) -> inspect.BoundArguments:
+        sign_with_symbols = inspect.BoundArguments(sign.signature, arg_copy := copy.copy(sign.arguments))
+        arg_copy.update((k, v.symbol) for k, v in zip(autodiffable_args, iter_autodiffables(sign), strict=True))
+        return sign_with_symbols
+
+    def iter_autodiffables(bound_args: inspect.BoundArguments) -> Iterator[AutoDiffable]:
+        return (ensure_autodiffable(bound_args.arguments[k]) for k in autodiffable_args)
 
     return autodiffable_function
 
@@ -243,7 +247,7 @@ def matmul(ad1: AutoDiffInput[T], ad2: AutoDiffInput[T], /) -> T:
     Matrix product ad1 and ad2.
     Broadcasting logic a la [numpy](https://numpy.org/doc/stable/reference/generated/numpy.matmul.html)
     """
-    t1, t2 = map(ensure_autodiffable, (ad1, ad2))
+    t1, t2 = ensure_autodiffable(ad1), ensure_autodiffable(ad2)
     assert t1.shape.ndims > 0 and t2.shape.ndims > 0, f"matmul requires {t1=} and {t2=} to have at least 1 dim"
     t1_bc, t2_bc = addaxes(t1, -1, 1), transpose(addaxes(t2, -2, 1), -1, -2)
     return sum(mul(t1_bc, t2_bc), -1)

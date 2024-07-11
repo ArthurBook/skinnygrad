@@ -93,8 +93,7 @@ class Shape(Sequence[int]):
             return self.broadcast(other.lpad(len(self) - len(other)))
         if len(self) < len(other):
             return other.broadcast(self.lpad(len(other) - len(self)))
-        for a, b in zip(self, other):
-            assert a == 1 or b == 1 or a == b, f"Cannot broadcast between {self=} <--> {other=}"
+        assert all(a == b or a == 1 or b == 1 for a, b in zip(self, other)), f"Broadcast {self=} <> {other=} failed"
         return Shape(tuple(max(a, b) for a, b in zip(self, other)))
 
     def permute(self, axes: Sequence[int]) -> Shape:
@@ -196,7 +195,7 @@ class UnaryOps(enum.Enum):  # elementwise apply f(a:M)->b:M
 
 
 @enum.global_enum
-class BinaryOps(enum.StrEnum):  # elementwise apply f(a:A,b:A)->c:A
+class BinaryOps(enum.Enum):  # elementwise apply f(a:A,b:A)->c:A
     ADD = enum.auto()  # addition a+b
     MUL = enum.auto()  # multiplication a*b
 
