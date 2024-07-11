@@ -8,7 +8,7 @@ packages = [{include = "logging_callback", from = "./src/"}]
 
 [tool.poetry.dependencies]
 python = "^3.11"
-skinnygrad = {path = "../.."}
+skinnygrad = "*"
 
 [build-system]
 requires = ["poetry-core"]

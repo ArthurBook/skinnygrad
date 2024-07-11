@@ -8,7 +8,7 @@ packages = [{include = "visualization", from = "./src/"}]
 
 [tool.poetry.dependencies]
 python = "^3.11"
-skinnygrad = {path = "../.."}
+skinnygrad = "*"
 graphviz = "^0.20.3"
 pygraphviz = "^1.13"
 

@@ -99,7 +99,7 @@ profile = ["gprof2dot (>=2022.7.29)"]
 name = "graphviz"
 version = "0.20.3"
 description = "Simple Python interface for Graphviz"
-optional = true
+optional = false
 python-versions = ">=3.8"
 files = [
     {file = "graphviz-0.20.3-py3-none-any.whl", hash = "sha256:81f848f2904515d8cd359cc611faba817598d2feaac4027b266aa3eda7b3dde5"},
@@ -315,7 +315,7 @@ testing = ["pytest", "pytest-benchmark"]
 name = "pygraphviz"
 version = "1.13"
 description = "Python interface to Graphviz"
-optional = true
+optional = false
 python-versions = ">=3.10"
 files = [
     {file = "pygraphviz-1.13.tar.gz", hash = "sha256:6ad8aa2f26768830a5a1cfc8a14f022d13df170a8f6fdfd68fd1aa1267000964"},
@@ -372,13 +372,13 @@ dev = ["argcomplete", "attrs (>=19.2)", "hypothesis (>=3.56)", "mock", "pygments
 name = "skinnygrad-logger"
 version = "0.1.0"
 description = "logger for the skinnygrad package"
-optional = true
+optional = false
 python-versions = "^3.11"
 files = []
-develop = true
+develop = false
 
 [package.dependencies]
-skinnygrad = {path = "../.."}
+skinnygrad = "*"
 
 [package.source]
 type = "directory"
@@ -388,15 +388,15 @@ url = "extensions/logger"
 name = "skinnygrad-visualizer"
 version = "0.1.0"
 description = "visualizer for the skinnygrad package"
-optional = true
+optional = false
 python-versions = "^3.11"
 files = []
-develop = true
+develop = false
 
 [package.dependencies]
 graphviz = "^0.20.3"
 pygraphviz = "^1.13"
-skinnygrad = {path = "../.."}
+skinnygrad = "*"
 
 [package.source]
 type = "directory"
@@ -431,4 +431,4 @@ visualizer = ["skinnygrad-visualizer"]
 [metadata]
 lock-version = "2.0"
 python-versions = "^3.11"
-content-hash = "7c29ad0ebd4ce9a6e8a6e87df5709d616480d0290c3e5f1171f62830bd21b57f"
+content-hash = "37f1c33520166b505bb36483026dabbabdae4486653227ef2a5ae7f457b8d63a"

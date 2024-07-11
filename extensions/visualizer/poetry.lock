@@ -82,25 +82,19 @@ files = [
 
 [[package]]
 name = "skinnygrad"
-version = "0.1.0"
+version = "0.0.0a1"
 description = "autodiff engine inspired by tinygrad"
 optional = false
-python-versions = "^3.11"
-files = []
-develop = false
+python-versions = "<4.0,>=3.11"
+files = [
+    {file = "skinnygrad-0.0.0a1-py3-none-any.whl", hash = "sha256:58a0073faf34e31f1003db0bed0939db8fbb0c0ff4f6d4c79fb97b165b59729d"},
+    {file = "skinnygrad-0.0.0a1.tar.gz", hash = "sha256:47cd11bfb7cfabb3759170a827b7802f8d159917b6629938550f480fe2b396fb"},
+]
 
 [package.dependencies]
-numpy = "^2.0.0"
-
-[package.extras]
-logger = ["skinnygrad-logger @ file:///Users/arthur/projects/barebones-architectures/extensions/logger"]
-visualizer = ["skinnygrad-visualizer @ file:///Users/arthur/projects/barebones-architectures/extensions/visualizer"]
-
-[package.source]
-type = "directory"
-url = "../.."
+numpy = ">=2.0.0,<3.0.0"
 
 [metadata]
 lock-version = "2.0"
 python-versions = "^3.11"
-content-hash = "2e766eb212d232ebd045acb3e5d44b9a2e8f102733420496bcbf5e222b22290c"
+content-hash = "d9637c78549d19c474800fe6cfb351230f2a4c412e965c27dee81dd70d00a1bb"

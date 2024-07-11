@@ -1,6 +1,6 @@
 [tool.poetry]
 name = "skinnygrad"
-version = "0.1.0"
+version = "0.0.0a2"
 description = "autodiff engine inspired by tinygrad"
 authors = ["Arthur <atte.book@gmail.com>"]
 readme = "README.md"
@@ -9,8 +9,8 @@ packages = [{ include = "skinnygrad", from = "./src/" }]
 [tool.poetry.dependencies]
 python = "^3.11"
 numpy = "^2.0.0"
-skinnygrad-logger = {path = "./extensions/logger", optional = true, develop = true}
-skinnygrad-visualizer = {path = "./extensions/visualizer", optional = true, develop = true}
+skinnygrad-logger = {path = "extensions/logger"}
+skinnygrad-visualizer = {path = "extensions/visualizer"}
 
 [tool.poetry.extras]
 logger = ["skinnygrad-logger"]
