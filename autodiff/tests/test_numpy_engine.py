@@ -32,12 +32,6 @@ def test_numpy_engine_assign_full_loop() -> None:
     assert x_val == [3, 4, 5]
 
 
-def test_numpy_engine_garbagecollector() -> None:
-    ## TODO
-    ...
-
-
 if __name__ == "__main__":
     test_numpy_engine_add_reduce()
-    test_numpy_engine_garbagecollector()
     test_numpy_engine_assign_full_loop()
