@@ -23,7 +23,7 @@ mypy = "^1.10.0"
 pylint = "^3.1.0"
 
 [tool.black]
-line-length = 100
+line-length = 120
 
 [tool.pylint]
 disable = [
@@ -35,11 +35,11 @@ disable = [
 
 [tool.poetry.group.test.dependencies]
 pytest = "^8.2.1"
-tinygrad = "^0.9.0"
 
 [tool.mypy]
 disable_error_code = [
-    "syntax" # complains about non-mypy related type-ignores
+    "syntax", # complains about non-mypy related type-ignores
+    "var-annotated" # complains about non-annotated variables
 ]
 
 [build-system]
