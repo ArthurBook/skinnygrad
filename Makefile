@@ -15,7 +15,7 @@ fmt: # Formats the code in the src/ and tests/ directories using black.
 
 .PHONY: lint
 lint: # Lints the code in the src/ and tests/ directories using pylint.
-	poetry run pylint src/ tests/
+	poetry run pylint src/ tests/ --rcfile=pyproject.toml src/skinnygrad/
 
 .PHONY: typecheck
 typecheck: # Performs type checking in the src/ and tests/ directories using mypy.
@@ -23,8 +23,7 @@ typecheck: # Performs type checking in the src/ and tests/ directories using myp
 
 .PHONY: test
 test: # Runs automated tests using pytest.
-	export PYTHONPATH=./src/:$PYTHONPATH
-	poetry run pytest
+	SKINNYGRAD_LOGLEVEL=DEBUG PYTHONPATH=./src/:${PYTHONPATH} poetry run pytest
 
 .PHONY: linecount
 linecount: # Counts the number of lines of Python code in the src/ directory.

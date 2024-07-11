@@ -1,1 +1,0 @@
-# Logger for the tinydiff package
