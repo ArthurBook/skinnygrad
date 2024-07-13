@@ -67,4 +67,4 @@ def test_matrix_addition_backprop(engine: runtime.Engine) -> None:
 
 
 if __name__ == "__main__":
-    test_dotprod_backprop(runtime.NumPyEngine())
+    test_matrix_mul_backprop(runtime.NumPyEngine())

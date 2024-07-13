@@ -1,234 +1,155 @@
 """
-These are the low level ops that the backend must support.
-Tribute to [Chief Keef - Opps](https://www.youtube.com/watch?v=0XbrR1veyyI)
+Computational graph
 """
 
 from __future__ import annotations
 
 import dataclasses
 import enum
-import math
-from typing import TYPE_CHECKING, Any, Generic, Iterator, Literal, Sequence, TypeVar, overload
+import inspect
+from typing import TYPE_CHECKING, Callable, Generic, ParamSpec, Self, Sequence, TypeVar
 
-from skinnygrad import config, llops
+from skinnygrad import config, shapes
 
 if TYPE_CHECKING:
     from skinnygrad import runtime
 
-RefType = TypeVar("RefType")
+P, R = ParamSpec("P"), TypeVar("R")
 PyArrayRepr = int | float | bool | Sequence["PyArrayRepr"]
 
 
 @dataclasses.dataclass(slots=True)
-class Symbol(Generic[RefType]):
+class Symbol(Generic[P]):
     """
-    Vertex and its inbound edges in the computational graph
-    post execution, materialize with `buffer` holding the result
+    A node in the computation graph.
+    op:     The operation that produced this symbol.
+    shape:  The shape of the symbol.
+    args:   The arguments that were passed to the operation.
     """
 
-    op: LLOps
-    src: tuple[Symbol[RefType], ...]
-    shape: Shape
-    args: tuple[Any, ...] = dataclasses.field(default_factory=tuple)
-    _buffer: runtime.Buffer[RefType] | None = dataclasses.field(default=None)
+    op: Op[P]
+    shape: shapes.Shape
+    args: inspect.BoundArguments
+    _buffer_cache: runtime.Buffer | None = None
 
     def __post_init__(self) -> None:
         config.Configuration.on_symbol_creation(self)
 
     def __repr__(self) -> str:
-        return (
-            f"<{self.__class__.__name__}("
-            f"{f'REALIZED' if self._buffer else f'UNREALIZED {self.op.name}'}, "
-            f"shape={self.shape.dims!r}"
-            ")>"
-        )
+        status = "REALIZED" if self.is_realized else "UNREALIZED"
+        return f"<{self.__module__}.{self.__class__.__name__}({status} {self.op!r}, shape={self.shape.dims!r})>"
 
-    def realize(self) -> runtime.Buffer[RefType]:
+    def realize(self, engine: None | runtime.Engine[runtime.RefType] = None) -> runtime.Buffer[runtime.RefType]:
         if (buffer := self.buffer) is None:
-            self.buffer = buffer = config.Configuration.engine.run(self)
+            buffer = self.buffer = (config.Configuration.engine if engine is None else engine).run(self)
         return buffer
 
     @property
-    def buffer(self) -> runtime.Buffer[RefType] | None:
-        return self._buffer
+    def is_realized(self) -> bool:
+        return self.buffer is not None
+
+    @property
+    def symbol_args(self) -> dict[str, Symbol]:
+        return {k: arg for k, arg in self.args.arguments.items() if isinstance(arg, Symbol)}
+
+    @property
+    def non_symbol_args(self) -> dict[str, Symbol]:
+        return {k: arg for k, arg in self.args.arguments.items() if not isinstance(arg, Symbol)}
+
+    @property
+    def buffer(self) -> None | runtime.Buffer:
+        return self._buffer_cache
 
     @buffer.setter
-    def buffer(self, buffer: runtime.Buffer[RefType]) -> None:
-        if self._buffer is not None:
-            assert self._buffer == buffer, f"Buffer ref is immutable {self._buffer=}<-{self.buffer}"
-            return
-        self.op, self.src, self.args, self._buffer = llops.ControlOps.REALIZED, (), (), buffer
+    def buffer(self, buffer: runtime.Buffer) -> None:
+        self._buffer_cache = buffer
+        self.args.arguments.update((k, None) for k in self.symbol_args)  # NOTE: deref for garbage collector
 
 
-@dataclasses.dataclass(slots=True, frozen=True)
-class Shape(Sequence[int]):
-    dims: tuple[int, ...]
+@dataclasses.dataclass(slots=True, unsafe_hash=True)
+class Op(Generic[P]):
+    constructor: Callable[P, tuple[shapes.Shape, inspect.BoundArguments]]
+    name: str = dataclasses.field(init=False)
 
-    def __getitem__(self, index: int | slice) -> Shape:
-        dims = self.dims[index]
-        return Shape((dims,) if isinstance(dims, int) else dims)
+    def __call__(self, *args: P.args, **kwds: P.kwargs) -> Symbol[P]:
+        return Symbol(self, *self.constructor(*args, **kwds))
 
-    def __eq__(self, other: object) -> bool:
-        return isinstance(other, Shape) and self.dims == other.dims
+    def __set_name__(self, _: type[Ops], name: str) -> None:
+        self.name = name
+
+    def __get__(self, *_) -> Self:
+        return self
+
+    def __str__(self) -> str:
+        return f"<{self.__class__.__name__}({self.name})>"
 
     def __repr__(self) -> str:
         return str(self)
 
-    def __str__(self) -> str:
-        return f"Shape({', '.join(map(str, self.dims))})"
 
-    def __bool__(self) -> bool:
-        return len(self.dims) > 0
-
-    def __len__(self) -> int:
-        return self.ndims
-
-    def __iter__(self) -> Iterator[int]:
-        return iter(self.dims)
-
-    def broadcast(self, other: Shape) -> Shape:
-        if self == other:
-            return self
-        if len(self) > len(other):
-            return self.broadcast(other.lpad(len(self) - len(other)))
-        if len(self) < len(other):
-            return other.broadcast(self.lpad(len(other) - len(self)))
-        assert all(a == b or a == 1 or b == 1 for a, b in zip(self, other)), f"Broadcast {self=} <> {other=} failed"
-        return Shape(tuple(max(a, b) for a, b in zip(self, other)))
-
-    def permute(self, axes: Sequence[int]) -> Shape:
-        return Shape(tuple(self.dims[i] for i in axes))
-
-    def swapaxes(self, ax1: int, ax2: int) -> Shape:
-        axes = list(range(len(self)))
-        axes[ax1], axes[ax2] = axes[ax2], axes[ax1]
-        return self.permute(axes)
-
-    def insertaxes(self, *axes: int) -> Shape:
-        new_axes = list(self)
-        for i in sorted(axes, reverse=True):
-            new_axes.insert(i, 1)
-        return Shape(tuple(new_axes))
-
-    def addaxes(self, idx: int, n_dims: int) -> Shape:
-        return Shape(self.dims[:idx] + (1,) * n_dims + self.dims[idx:])
-
-    def lpad(self, n_dims: int) -> Shape:
-        return self.addaxes(0, n_dims)
-
-    def rpad(self, n_dims: int) -> Shape:
-        return self.addaxes(len(self), n_dims)
-
-    def dropaxes(self, *axes: int) -> Shape:
-        pos_axes = set(self.normalize_idxs(*axes))
-        return Shape(tuple(d for i, d in enumerate(self) if i not in pos_axes))
-
-    def flat(self) -> Shape:
-        return Shape((self.size,))
-
-    def normalize_idxs(self, *idxs: int) -> tuple[int, ...]:
-        own_len = len(self)
-        return tuple(idx % own_len for idx in sorted(idxs, reverse=True))
-
-    @property
-    def ndims(self) -> int:
-        return len(self.dims)
-
-    @property
-    def size(self) -> int:
-        return math.prod(self.dims)
-
-    @classmethod
-    def from_data(cls, data: PyArrayRepr, /) -> Shape:
-        return cls(tuple((len(data), *cls.from_data(data[0])))) if isinstance(data, Sequence) else cls(())
+def construct_load(data: PyArrayRepr, /) -> tuple[shapes.Shape, inspect.BoundArguments]:
+    return shapes.Shape.from_data(data), bind(construct_load, data)
 
 
-@enum.global_enum
-class ControlOps(enum.Enum):
-    LOAD = enum.auto()  # create the tensor from an init instruction
-    RESHAPE = enum.auto()  # reshape the tensor
-    EXPAND = enum.auto()  # broadcast the tensor
-    PERMUTE = enum.auto()  # permute the tensor
-    ASSIGN = enum.auto()  # elementwise assign from one tensor to another (shapes must match)
-    REALIZED = enum.auto()  # do nothing. used for realized vertices
-
-    @overload
-    def __call__(self: Literal[ControlOps.LOAD], data: PyArrayRepr, /) -> Symbol: ...
-    @overload
-    def __call__(self: Literal[ControlOps.RESHAPE], src: Symbol, shape: Shape, /) -> Symbol: ...
-    @overload
-    def __call__(self: Literal[ControlOps.EXPAND], src: Symbol, shape: Shape, /) -> Symbol: ...
-    @overload
-    def __call__(self: Literal[ControlOps.PERMUTE], src: Symbol, axes: Sequence[int], /) -> Symbol: ...
-    @overload
-    def __call__(self: Literal[ControlOps.ASSIGN], target: Symbol, src: Symbol, /) -> Symbol: ...
-    def __call__(self, *args) -> Symbol:
-        if self is ControlOps.LOAD:
-            assert isinstance(src := args[0], (int, float, bool, Sequence)), f"Unknown {src=}"
-            return Symbol(self, src=(), args=(src,), shape=Shape.from_data(src))
-        if self in (ControlOps.RESHAPE, ControlOps.EXPAND):
-            assert isinstance(src := args[0], Symbol), f"{src=} is not a Symbol"
-            assert isinstance(shape := args[1], Shape), f"{shape=} is not a Shape"
-            return Symbol(self, src=(src,), args=(shape.dims,), shape=shape)
-        if self is ControlOps.PERMUTE:
-            assert isinstance(src := args[0], Symbol), f"{src=} is not a Symbol"
-            assert isinstance(axes := args[1], Sequence), f"{axes=} is not a Sequence"
-            assert len(axes) == len(shape := src.shape), f"{axes=} don't match {shape=} len"
-            assert set(axes).issubset(range(-len(shape), len(shape))), f"Bad {axes=} for {shape=}"
-            return Symbol(self, src=(src,), args=(axes,), shape=shape.permute(axes))
-        if self is ControlOps.ASSIGN:
-            assert isinstance(src := args[0], Symbol), f"{src=} is not a Symbol"
-            assert isinstance(target := args[1], Symbol), f"{target=} is not a Symbol"
-            assert_shape_match(src.shape, target.shape)
-            return Symbol(self, src=args, shape=src.shape)
-        if self is ControlOps.REALIZED:
-            raise RuntimeError(f"{self=} should not be called")
-        raise NotImplementedError(f"{self=} is not implemented")
+def construct_reshape(s: Symbol, /, *, shape: shapes.Shape) -> tuple[shapes.Shape, inspect.BoundArguments]:
+    assert s.shape.size == shape.size, f"{s.shape=} <> {shape=} size mismatch"
+    return shape, bind(construct_reshape, s, shape=shape)
 
 
-@enum.global_enum
-class UnaryOps(enum.Enum):  # elementwise apply f(a:M)->b:M
-    NEG = enum.auto()  # turn the value negative
-
-    def __call__(self, src: Symbol) -> Symbol:
-        return Symbol(self, src=(src,), shape=src.shape)
+def construct_broadcast(s: Symbol, /, *, shape: shapes.Shape) -> tuple[shapes.Shape, inspect.BoundArguments]:
+    return s.shape.broadcast(shape), bind(construct_broadcast, s, shape=shape)
 
 
-@enum.global_enum
-class BinaryOps(enum.Enum):  # elementwise apply f(a:A,b:A)->c:A
-    ADD = enum.auto()  # addition a+b
-    MUL = enum.auto()  # multiplication a*b
-
-    def __call__(self, src1: Symbol, src2: Symbol) -> Symbol:
-        assert_shape_match(src1.shape, src2.shape)
-        return Symbol(self, src=(src1, src2), shape=src1.shape)
+def construct_permute(s: Symbol, /, *, order: Sequence[int]) -> tuple[shapes.Shape, inspect.BoundArguments]:
+    assert len(order) == s.shape.ndims, f"{s.shape=} <> {order=} must have same number of dimensions"
+    return s.shape.permute(order), bind(construct_permute, s, order=s.shape.normalize_idxs(*order))
 
 
-@enum.global_enum
-class TernaryOps(enum.Enum):  # elementwise apply f(a:A,b:A,c:A)->d:A
-    WHERE = enum.auto()  # where a, take b, else c
-
-    def __call__(self, src1: Symbol, src2: Symbol, src3: Symbol) -> Symbol:
-        assert_shape_match(src1.shape, src2.shape, src3.shape)
-        return Symbol(self, src=(src1, src2, src3), shape=src1.shape)
+def construct_assign(
+    s1: Symbol, s2: Symbol, /, *, loc: slice | bool = True
+) -> tuple[shapes.Shape, inspect.BoundArguments]:
+    assert_shape_match(s1, s2)  # TODO: loc
+    return s1.shape, bind(construct_assign, s1, s2, loc=loc)
 
 
-@enum.global_enum
-class ReduceOps(enum.Enum):  # reduce a along axis=int f(a:A)->b:B
-
-    SUM = enum.auto()  # sum along axis
-    MAX = enum.auto()  # max along axis
-
-    def __call__(self, src: Symbol, axes: Sequence[int]) -> Symbol:
-        assert isinstance(axes, Sequence), f"{axes=} is not a sequence"
-        assert set(axes).issubset(range(-len(src.shape), len(src.shape))), f"Bad {axes=}"
-        return Symbol(self, src=(src,), args=(axes,), shape=src.shape.dropaxes(*axes))
+def construct_unary(s: Symbol, /) -> tuple[shapes.Shape, inspect.BoundArguments]:
+    return s.shape, bind(construct_unary, s)
 
 
-## These are all the ops that the backend must support
-LLOps = ControlOps | UnaryOps | BinaryOps | TernaryOps | ReduceOps
+def construct_binary(s1: Symbol, s2: Symbol, /) -> tuple[shapes.Shape, inspect.BoundArguments]:
+    assert_shape_match(s1, s2)
+    return s1.shape, bind(construct_binary, s1, s2)
+
+
+def construct_reduce(s: Symbol, /, axes: tuple[int, ...]) -> tuple[shapes.Shape, inspect.BoundArguments]:
+    assert isinstance(s, Symbol), f"{s=} must be symbol"
+    ndims, normed_axes = s.shape.ndims, sorted(s.shape.normalize_idxs(*axes), reverse=True)
+    assert all(0 <= ax < ndims for ax in ()), f"{axes=} must be in range [0, {ndims=}]"
+    return s.shape.dropaxes(*normed_axes), bind(construct_reduce, s, tuple(normed_axes))
 
 
 ### Helpers ###
-def assert_shape_match(*shapes: Shape) -> None:
-    assert all(shapes[0] == shape for shape in shapes[1:]), f"{shapes=} do not match"
+def bind(f: Callable[P, R], *args: P.args, **kwargs: P.kwargs) -> inspect.BoundArguments:
+    return inspect.signature(f).bind(*args, **kwargs)
+
+
+def assert_shape_match(*symbols: Symbol) -> None:
+    assert all(isinstance(symbol, Symbol) for symbol in symbols), f"{symbols=} must be symbols"
+    assert all(symbols[0].shape == symbol.shape for symbol in symbols[1:]), f"{symbols=} do not match"
+
+
+### Ops ##
+@enum.global_enum
+class Ops(enum.Enum):
+    """Low level ops that define & execute the computational graph"""
+
+    LOAD = Op(construct_load)
+    ASSIGN = Op(construct_assign)
+    RESHAPE = Op(construct_reshape)
+    BROADCAST = Op(construct_broadcast)
+    PERMUTE = Op(construct_permute)
+    NEG = Op(construct_unary)
+    ADD = Op(construct_binary)
+    MUL = Op(construct_binary)
+    SUM = Op(construct_reduce)
+    MAX = Op(construct_reduce)

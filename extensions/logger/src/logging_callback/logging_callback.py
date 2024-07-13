@@ -7,7 +7,7 @@ LOG_LEVEL_ENV_SETTER = "SKINNYGRAD_LOGLEVEL"
 
 logging.basicConfig(
     level=logging._nameToLevel[os.environ.get(LOG_LEVEL_ENV_SETTER, "INFO")],
-    format="%(asctime)s %(levelname)-9s %(funcName)s: - %(message)s",
+    format="%(asctime)s %(levelname)-10s%(funcName)s: - %(message)s",
     datefmt="%Y-%m-%d %H:%M:%S",
 )
 
@@ -25,7 +25,7 @@ class SkinnyGradLogger(callbacks.OnSymbolInitCallBack):
                 logging.DEBUG,
                 "%(op)-10s(%(in shapes)-20s) → %(out shape)s",
                 {
-                    "in shapes": ", ".join(str(s.shape.dims) for s in symbol.src),
+                    "in shapes": ", ".join(map(str, (s.shape.dims for s in symbol.symbol_args.values()))),
                     "op": symbol.op.name,
                     "out shape": repr(symbol.shape),
                 },

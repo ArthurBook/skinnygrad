@@ -13,26 +13,23 @@ import itertools
 import typing
 from typing import Callable, Concatenate, Generic, Iterator, ParamSpec, Self, Sequence, TypeVar, Union
 
-from skinnygrad import llops
+from skinnygrad import llops, shapes
 
 # fmt: off
-T = TypeVar("T", bound='AutoDiffable')
-P = ParamSpec("P")
+P, T = ParamSpec("P"),TypeVar("T", bound='AutoDiffable')
 AutoDiffInput = Union[T, llops.PyArrayRepr]
 LazyGrad = Callable[[llops.Symbol], llops.Symbol]
 UnaryGradDefinition = Callable[Concatenate[llops.Symbol, P], tuple[llops.Symbol, LazyGrad]]
 BinaryGradDefinition = Callable[Concatenate[llops.Symbol, llops.Symbol, P], tuple[llops.Symbol, LazyGrad, LazyGrad]]
-TernaryGradDefinition = Callable[Concatenate[llops.Symbol, llops.Symbol, llops.Symbol, P], tuple[llops.Symbol, LazyGrad, LazyGrad, LazyGrad]]
 UnaryAutoDiffFunc = Callable[Concatenate[AutoDiffInput[T], P], T]
 BinaryAutoDiffFunc = Callable[Concatenate[AutoDiffInput[T], AutoDiffInput[T], P], T]
-TernaryAutoDiffFunc = Callable[Concatenate[AutoDiffInput[T], AutoDiffInput[T], AutoDiffInput[T], P], T]
 # fmt: on
 
 
 ### Base for autodiff ###
 class AutoDiffable(abc.ABC):
     def __init__(self, data: llops.PyArrayRepr | llops.Symbol, requires_grad: bool = False) -> None:
-        self.symbol = data if isinstance(data, llops.Symbol) else llops.ControlOps.LOAD(data)
+        self.symbol = data if isinstance(data, llops.Symbol) else llops.Ops.LOAD(data)
         self.requires_grad = requires_grad
         self.gradient: llops.Symbol | None = None
         self.backprops: tuple[Backprop, ...] = ()
@@ -53,16 +50,16 @@ class AutoDiffable(abc.ABC):
         assert self.requires_grad, f"backprop called on tensor with {self.requires_grad=}"
         assert self.shape.size == 1, f"backprop called on tensor with non-scalar {self.shape=}"
         assert self.backprops, f"backprop called on tensor with no grad graph"
-        self._backward(llops.ControlOps.LOAD(1))
+        self._backward(llops.Ops.LOAD(1))
 
     def _backward(self, delta: llops.Symbol) -> None:
         assert self.requires_grad, f"_backward called on tensor with {self.requires_grad=}"
-        self.gradient = delta if self.gradient is None else llops.BinaryOps.ADD(self.gradient, delta)
+        self.gradient = delta if self.gradient is None else llops.Ops.ADD(self.gradient, delta)
         for backprop in self.backprops:
             backprop(delta)
 
     @property
-    def shape(self) -> llops.Shape:
+    def shape(self) -> shapes.Shape:
         return self.symbol.shape
 
     @classmethod
@@ -87,8 +84,6 @@ class Backprop(Generic[T]):
 def llop_gradient(grad_def: UnaryGradDefinition[P], /) -> UnaryAutoDiffFunc[T, P]: ...
 @typing.overload
 def llop_gradient(grad_def: BinaryGradDefinition[P], /) -> BinaryAutoDiffFunc[T, P]: ...
-@typing.overload
-def llop_gradient(grad_def: TernaryGradDefinition[P], /) -> TernaryAutoDiffFunc[T, P]: ...
 def llop_gradient(grad_def: Callable[P, tuple[llops.Symbol, LazyGrad]]) -> Callable[P, AutoDiffable]:  # type: ignore
     """
     Turn the symbol-level def of forward & backward into an autodiffable function for tensors
@@ -138,10 +133,10 @@ def llop_gradient(grad_def: Callable[P, tuple[llops.Symbol, LazyGrad]]) -> Calla
 ### Unary gradient defs ###
 @llop_gradient
 def reshape(symbol: llops.Symbol, /, shape: Sequence[int]) -> tuple[llops.Symbol, LazyGrad]:
-    if symbol.shape == (newshape := llops.Shape(tuple(shape))):
+    if symbol.shape == (newshape := shapes.Shape(tuple(shape))):
         return symbol, lambda output_grad: output_grad  # no op needed
-    forward = llops.ControlOps.RESHAPE(symbol, newshape)
-    backward = lambda output_grad: llops.ControlOps.RESHAPE(output_grad, symbol.shape)
+    forward = llops.Ops.RESHAPE(symbol, shape=newshape)
+    backward = lambda output_grad: llops.Ops.RESHAPE(output_grad, shape=symbol.shape)
     return forward, backward
 
 
@@ -173,11 +168,11 @@ def permute(symbol: llops.Symbol, /, *order: int) -> tuple[llops.Symbol, LazyGra
     """
 
     def backward(output_grad: llops.Symbol) -> llops.Symbol:
-        reversed_order = llops.Shape(tuple(sorted(range(len(order)), key=order.__getitem__)))
-        return llops.ControlOps.PERMUTE(output_grad, reversed_order)
+        reversed_order = shapes.Shape(tuple(sorted(range(len(order)), key=order.__getitem__)))
+        return llops.Ops.PERMUTE(output_grad, order=reversed_order)
 
     order = order if order else tuple(reversed(range(symbol.shape.ndims)))
-    forward = llops.ControlOps.PERMUTE(symbol, order)
+    forward = llops.Ops.PERMUTE(symbol, order=order)
     return forward, backward
 
 
@@ -193,16 +188,16 @@ def broadcast(symbol: llops.Symbol, /, shape: Sequence[int]) -> tuple[llops.Symb
     def backward(output_grad: llops.Symbol) -> llops.Symbol:
         dims = itertools.zip_longest(reversed(shape), reversed(symbol.shape), fillvalue=0)
         new_dims = tuple(-1 - idx for idx, (i, j) in enumerate(dims) if i != j)
-        return llops.ReduceOps.SUM(output_grad, new_dims)
+        return llops.Ops.SUM(output_grad, new_dims)
 
-    forward = llops.ControlOps.EXPAND(symbol, llops.Shape(tuple(shape)))
+    forward = llops.Ops.BROADCAST(symbol, shape=shapes.Shape(tuple(shape)))
     return forward, backward
 
 
 @llop_gradient
 def neg(symbol: llops.Symbol) -> tuple[llops.Symbol, LazyGrad]:
-    forward = llops.UnaryOps.NEG(symbol)
-    backward = lambda output_grad: llops.UnaryOps.NEG(output_grad)
+    forward = llops.Ops.NEG(symbol)
+    backward = lambda output_grad: llops.Ops.NEG(output_grad)
     return forward, backward
 
 
@@ -213,19 +208,19 @@ def sum(symbol: llops.Symbol, /, axes: int | Sequence[int] | None = None) -> tup
     def backward(output_grad: llops.Symbol) -> llops.Symbol:
         if axes is not None:
             prev_shape = output_grad.shape.insertaxes(*symbol.shape.normalize_idxs(*axes))
-            output_grad = llops.ControlOps.RESHAPE(output_grad, prev_shape)
-        return llops.ControlOps.EXPAND(output_grad, symbol.shape)
+            output_grad = llops.Ops.RESHAPE(output_grad, shape=prev_shape)
+        return llops.Ops.BROADCAST(output_grad, shape=symbol.shape)
 
     if axes is None:
-        flat_symbol = llops.ControlOps.RESHAPE(symbol, symbol.shape.flat())
-        return llops.ReduceOps.SUM(flat_symbol, (0,)), backward
-    return llops.ReduceOps.SUM(symbol, axes), backward
+        flat_symbol = llops.Ops.RESHAPE(symbol, shape=symbol.shape.flat())
+        return llops.Ops.SUM(flat_symbol, (0,)), backward
+    return llops.Ops.SUM(symbol, tuple(axes)), backward
 
 
 ### Binary gradient defs ###
 @llop_gradient
 def add(symbol1: llops.Symbol, symbol2: llops.Symbol) -> tuple[llops.Symbol, LazyGrad, LazyGrad]:
-    forward = llops.BinaryOps.ADD(symbol1, symbol2)
+    forward = llops.Ops.ADD(symbol1, symbol2)
     backward = lambda output_grad: output_grad
     return forward, backward, backward
 
@@ -236,9 +231,9 @@ def sub(ad1: AutoDiffInput[T], ad2: AutoDiffInput[T], /) -> T:
 
 @llop_gradient
 def mul(symbol1: llops.Symbol, symbol2: llops.Symbol) -> tuple[llops.Symbol, LazyGrad, LazyGrad]:
-    forward = llops.BinaryOps.MUL(symbol1, symbol2)
-    backward1 = lambda output_grad: llops.BinaryOps.MUL(output_grad, symbol2)
-    backward2 = lambda output_grad: llops.BinaryOps.MUL(output_grad, symbol1)
+    forward = llops.Ops.MUL(symbol1, symbol2)
+    backward1 = lambda output_grad: llops.Ops.MUL(output_grad, symbol2)
+    backward2 = lambda output_grad: llops.Ops.MUL(output_grad, symbol1)
     return forward, backward1, backward2
 
 
@@ -254,7 +249,7 @@ def matmul(ad1: AutoDiffInput[T], ad2: AutoDiffInput[T], /) -> T:
 
 
 ### helpers ###
-def get_common_broadcast_shape(*ads: AutoDiffable) -> llops.Shape:
+def get_common_broadcast_shape(*ads: AutoDiffable) -> shapes.Shape:
     if all(s == ads[0].shape for s in ads):
         return ads[0].shape
     return functools.reduce(lambda s1, s2: s1.broadcast(s2.shape), ads[1:], ads[0].shape)

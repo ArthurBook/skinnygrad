@@ -1,5 +1,5 @@
 """
-
+Tensors with torch-like interface
 """
 
 from __future__ import annotations
