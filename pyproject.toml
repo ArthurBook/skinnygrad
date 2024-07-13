@@ -1,15 +1,20 @@
 [tool.poetry]
-name = "barebones-ml"
-version = "0.1.0"
-description = "Various ML architectures written from scratch in PyTorch"
+name = "skinnygrad"
+version = "0.0.0a2"
+description = "autodiff engine inspired by tinygrad"
 authors = ["Arthur <atte.book@gmail.com>"]
 readme = "README.md"
-package-mode = false
+packages = [{ include = "skinnygrad", from = "./src/" }]
 
 [tool.poetry.dependencies]
-python = "^3.9"
-numpy = "^1.26.4"
-torch = "^2.3.0"
+python = "^3.11"
+numpy = "^2.0.0"
+skinnygrad-logger = {path = "extensions/logger"}
+skinnygrad-visualizer = {path = "extensions/visualizer"}
+
+[tool.poetry.extras]
+logger = ["skinnygrad-logger"]
+visualizer = ["skinnygrad-visualizer"]
 
 [tool.poetry.group.dev.dependencies]
 black = "^24.4.2"
@@ -17,9 +22,25 @@ isort = "^5.13.2"
 mypy = "^1.10.0"
 pylint = "^3.1.0"
 
+[tool.black]
+line-length = 120
+
+[tool.pylint]
+disable = [
+    'C0103', # Invalid name
+    'C0115', # Missing function or method docstring
+    'C0116', # Missing class docstring
+    'R0903', # Too few public methods
+]
 
 [tool.poetry.group.test.dependencies]
 pytest = "^8.2.1"
+
+[tool.mypy]
+disable_error_code = [
+    "syntax", # complains about non-mypy related type-ignores
+    "var-annotated" # complains about non-annotated variables
+]
 
 [build-system]
 requires = ["poetry-core"]

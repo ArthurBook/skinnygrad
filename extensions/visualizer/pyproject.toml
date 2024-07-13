@@ -1,0 +1,17 @@
+[tool.poetry]
+name = "skinnygrad-visualizer"
+version = "0.1.0"
+description = "visualizer for the skinnygrad package"
+authors = ["Arthur <atte.book@gmail.com>"]
+readme = "README.md"
+packages = [{include = "visualization", from = "./src/"}]
+
+[tool.poetry.dependencies]
+python = "^3.11"
+skinnygrad = "*"
+graphviz = "^0.20.3"
+pygraphviz = "^1.13"
+
+[build-system]
+requires = ["poetry-core"]
+build-backend = "poetry.core.masonry.api"
