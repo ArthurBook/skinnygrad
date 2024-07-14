@@ -66,5 +66,61 @@ def test_matrix_addition_backprop(engine: runtime.Engine) -> None:
         assert np.allclose(B.gradient.realize().to_python(), expected_gradient)
 
 
+def test_simple_slice_gradient_backprop(engine: runtime.Engine) -> None:
+    with config.Configuration(engine=engine):
+        tensor = tensors.Tensor([[1.0, 2.0], [3.0, 4.0]], requires_grad=True)
+        sliced_tensor = tensor[0]
+        sliced_tensor_sum = sliced_tensor.sum()
+        sliced_tensor_sum.backprop()
+        expected_gradient = [[1.0, 1.0], [0.0, 0.0]]
+        assert tensor.gradient is not None
+        assert np.allclose(tensor.gradient.realize().to_python(), expected_gradient)
+
+
+def test_column_slice_gradient_backprop(engine: runtime.Engine) -> None:
+    with config.Configuration(engine=engine):
+        tensor = tensors.Tensor([[1.0, 2.0], [3.0, 4.0]], requires_grad=True)
+        sliced_tensor = tensor[..., 1]
+        sliced_tensor_sum = sliced_tensor.sum()
+        sliced_tensor_sum.backprop()
+        expected_gradient = [[0.0, 1.0], [0.0, 1.0]]
+        assert tensor.gradient is not None
+        assert np.allclose(tensor.gradient.realize().to_python(), expected_gradient)
+
+
+def test_multidim_slice_gradient_backprop(engine: runtime.Engine) -> None:
+    with config.Configuration(engine=engine):
+        tensor = tensors.Tensor([[[1.0], [2.0]], [[3.0], [4.0]]], requires_grad=True)
+        sliced_tensor = tensor[0, (0, 1)]
+        sliced_tensor_sum = sliced_tensor.sum()
+        sliced_tensor_sum.backprop()
+        expected_gradient = [[[1.0], [0.0]], [[0.0], [0.0]]]
+        assert tensor.gradient is not None
+        assert np.allclose(tensor.gradient.realize().to_python(), expected_gradient)
+
+
+def test_complex_slice_gradient_backprop(engine: runtime.Engine) -> None:
+    with config.Configuration(engine=engine):
+        tensor = tensors.Tensor(np.random.randn(4, 3, 2).tolist(), requires_grad=True)
+        sliced_tensor = tensor[(1, 3), ...]
+        sliced_tensor_sum = sliced_tensor.sum()
+        sliced_tensor_sum.backprop()
+        expected_gradient = np.zeros((4, 3, 2))
+        expected_gradient[1:3, :] = 1.0
+        assert tensor.gradient is not None
+        assert np.allclose(tensor.gradient.realize().to_python(), expected_gradient)
+
+
+def test_single_element_slice_gradient_backprop(engine: runtime.Engine) -> None:
+    with config.Configuration(engine=engine):
+        tensor = tensors.Tensor([[3.0, 1.0], [4.0, 2.0]], requires_grad=True)
+        sliced_tensor = tensor[1, 1]
+        sliced_tensor_sum = sliced_tensor
+        sliced_tensor_sum.backprop()
+        expected_gradient = [[0.0, 0.0], [0.0, 1.0]]
+        assert tensor.gradient is not None
+        assert np.allclose(tensor.gradient.realize().to_python(), expected_gradient)
+
+
 if __name__ == "__main__":
-    test_matrix_mul_backprop(runtime.NumPyEngine())
+    test_multidim_slice_gradient_backprop(runtime.NumPyEngine())

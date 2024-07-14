@@ -137,3 +137,7 @@ def test_matmul_vs_numpy_2(shape1: tuple[int, ...], shape2: tuple[int, ...], eng
     with config.Configuration(engine=engine):
         result = autograd.matmul(arr1.tolist(), arr2.tolist()).realize()
     assert np.allclose(numpy_result, result), f"{arr1}, {arr2}"
+
+
+if __name__ == "__main__":
+    test_matmul_vs_numpy_1([[-1, -2], [-3, -4]], [[-5, -6], [-7, -8]], runtime.NumPyEngine())

@@ -56,10 +56,12 @@ class SequentialEngine(Engine[RefType], abc.ABC):
 class NumPyEngine(SequentialEngine[np.ndarray]):
     __OPS_MAP__ = {
         llops.Ops.LOAD: np.array,
-        llops.Ops.ASSIGN: lambda tgt, src, i: (np.copyto(tgt, src, where=i), tgt)[1],
-        llops.Ops.RESHAPE: np.reshape,
-        llops.Ops.BROADCAST: np.broadcast_to,
+        llops.Ops.SELECT: lambda arr, loc: arr[*(i if isinstance(i, int) else slice(*i) for i in loc)],
+        llops.Ops.RESHAPE: lambda src, newshape: np.reshape(src, newshape.dims),
+        llops.Ops.BROADCAST: lambda src, newshape: np.broadcast_to(src, newshape.dims),
         llops.Ops.PERMUTE: np.transpose,
+        llops.Ops.ASSIGN: lambda tgt, src, i: (np.copyto(tgt, src, where=i), tgt)[1],
+        llops.Ops.PAD: lambda src, loc, pad_val: np.pad(src, pad_width=loc, constant_values=(pad_val,)),
         llops.Ops.NEG: np.negative,
         llops.Ops.ADD: np.add,
         llops.Ops.MUL: np.multiply,
