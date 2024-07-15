@@ -232,6 +232,17 @@ def neg(symbol: llops.Symbol) -> tuple[llops.Symbol, LazyGrad]:
 
 
 @llop_gradient
+def reciprocal(symbol: llops.Symbol) -> tuple[llops.Symbol, LazyGrad]:
+    forward = llops.Ops.INV(symbol)
+
+    def backward(output_grad: llops.Symbol) -> llops.Symbol:
+        reciprocal_grad = llops.Ops.NEG(llops.Ops.INV(llops.Ops.MUL(symbol, symbol)))
+        return llops.Ops.MUL(reciprocal_grad, output_grad)
+
+    return forward, backward
+
+
+@llop_gradient
 def relu(symbol1: llops.Symbol) -> tuple[llops.Symbol, LazyGrad]:
     zeros = llops.Ops.BROADCAST(llops.Ops.READ(0), shape=symbol1.shape)
     forward = llops.Ops.WHERE(cond := llops.Ops.LESS(symbol1, zeros), zeros, symbol1)

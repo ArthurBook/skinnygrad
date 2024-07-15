@@ -148,7 +148,26 @@ def test_pad_gradient_backprop(engine: runtime.Engine, tensor_values, padding, e
 
 
 @pytest.mark.parametrize(
-    "arr, grad",
+    "arr",
+    [
+        ([1.0]),
+        ([2.0]),
+        ([0.5]),
+        ([[1.0, 2.0], [4.0, 8.0]]),
+        ([[[1.0], [2.0]], [[0.5], [0.25]]]),
+    ],
+)
+def test_reciprocal_backward(arr: llops.PyArrayRepr, engine: runtime.Engine) -> None:
+    with config.Configuration(engine=engine):
+        t = tensors.Tensor(arr, requires_grad=True)
+        t.reciprocal().sum().backprop()
+        reciprocal_grad = -1 / (np.array(arr) ** 2)
+        assert t.gradient is not None
+        assert np.allclose(t.gradient.realize().to_python(), reciprocal_grad.tolist(), atol=1e-6)
+
+
+@pytest.mark.parametrize(
+    "arr",
     [
         ([1], [1]),
         ([0], [1]),
@@ -157,15 +176,14 @@ def test_pad_gradient_backprop(engine: runtime.Engine, tensor_values, padding, e
         ([[[0.5], [1.5]], [[-0.5], [-1.5]]], [[[1], [1]], [[1], [1]]]),
     ],
 )
-def test_relu_backward(arr: llops.PyArrayRepr, grad: llops.PyArrayRepr, engine: runtime.Engine) -> None:
+def test_relu_backward(arr: llops.PyArrayRepr, engine: runtime.Engine) -> None:
     with config.Configuration(engine=engine):
         t = tensors.Tensor(arr, requires_grad=True)
         t.relu().sum().backprop()
 
         relu_grad = np.where(np.array(arr) >= 0, 1, 0)
-        expected_grad = np.array(grad) * relu_grad
         assert t.gradient is not None
-        assert np.allclose(t.gradient.realize().to_python(), expected_grad.tolist(), atol=1e-6)
+        assert np.allclose(t.gradient.realize().to_python(), relu_grad.tolist(), atol=1e-6)
 
 
 @pytest.mark.parametrize(

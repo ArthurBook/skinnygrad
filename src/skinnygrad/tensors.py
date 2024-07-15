@@ -22,6 +22,7 @@ class Tensor(autograd.AutoDiffable):
     __sub__ = __rsub__ = autograd.sub
     __mul__ = __rmul__ = autograd.mul
     __matmul__ = __rmatmul__ = autograd.matmul
+    reciprocal = autograd.reciprocal
     sum = autograd.sum
     # activations
     relu = autograd.relu
