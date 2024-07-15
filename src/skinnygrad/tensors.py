@@ -23,4 +23,6 @@ class Tensor(autograd.AutoDiffable):
     __mul__ = __rmul__ = autograd.mul
     __matmul__ = __rmatmul__ = autograd.matmul
     sum = autograd.sum
+    # activations
+    relu = autograd.relu
     sigmoid = autograd.sigmoid

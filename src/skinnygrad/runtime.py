@@ -56,19 +56,21 @@ class SequentialEngine(Engine[RefType], abc.ABC):
 class NumPyEngine(SequentialEngine[np.ndarray]):
     __OPS_MAP__ = {
         llops.Ops.READ: np.array,
-        llops.Ops.PAD: lambda src, pads, pad_val: np.pad(src, pad_width=pads, constant_values=(pad_val,)),
-        llops.Ops.SELECT: lambda arr, loc: arr[*(i if isinstance(i, int) else slice(*i) for i in loc)],
+        llops.Ops.ASSIGN: lambda tgt, src, i: (np.copyto(tgt, src, where=i), tgt)[1],
         llops.Ops.RESHAPE: lambda src, newshape: np.reshape(src, newshape.dims),
         llops.Ops.BROADCAST: lambda src, newshape: np.broadcast_to(src, newshape.dims),
         llops.Ops.PERMUTE: np.transpose,
-        llops.Ops.ASSIGN: lambda tgt, src, i: (np.copyto(tgt, src, where=i), tgt)[1],
+        llops.Ops.SELECT: lambda arr, loc: arr[*(i if isinstance(i, int) else slice(*i) for i in loc)],
+        llops.Ops.PAD: lambda src, pads, pad_val: np.pad(src, pad_width=pads, constant_values=(pad_val,)),
         llops.Ops.EXP: np.exp,
         llops.Ops.NEG: np.negative,
         llops.Ops.INV: np.reciprocal,
         llops.Ops.ADD: np.add,
         llops.Ops.MUL: np.multiply,
+        llops.Ops.LESS: np.less,
         llops.Ops.SUM: np.sum,
         llops.Ops.AMAX: np.amax,
+        llops.Ops.WHERE: np.where,
     }
 
     def execute(self, op: llops.Op, *args: np.ndarray | Any) -> np.ndarray:

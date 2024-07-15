@@ -157,6 +157,27 @@ def test_pad_gradient_backprop(engine: runtime.Engine, tensor_values, padding, e
         ([[[0.5], [1.5]], [[-0.5], [-1.5]]], [[[1], [1]], [[1], [1]]]),
     ],
 )
+def test_relu_backward(arr: llops.PyArrayRepr, grad: llops.PyArrayRepr, engine: runtime.Engine) -> None:
+    with config.Configuration(engine=engine):
+        t = tensors.Tensor(arr, requires_grad=True)
+        t.relu().sum().backprop()
+
+        relu_grad = np.where(np.array(arr) >= 0, 1, 0)
+        expected_grad = np.array(grad) * relu_grad
+        assert t.gradient is not None
+        assert np.allclose(t.gradient.realize().to_python(), expected_grad.tolist(), atol=1e-6)
+
+
+@pytest.mark.parametrize(
+    "arr, grad",
+    [
+        ([1], [1]),
+        ([0], [1]),
+        ([-1], [1]),
+        ([[0, 1], [-1, -2]], [[1, 1], [1, 1]]),
+        ([[[0.5], [1.5]], [[-0.5], [-1.5]]], [[[1], [1]], [[1], [1]]]),
+    ],
+)
 def test_sigmoid_backward(arr: llops.PyArrayRepr, grad: llops.PyArrayRepr, engine: runtime.Engine) -> None:
     with config.Configuration(engine=engine):
         t = tensors.Tensor(arr, requires_grad=True)

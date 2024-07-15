@@ -149,6 +149,23 @@ def test_matmul_vs_numpy_2(shape1: tuple[int, ...], shape2: tuple[int, ...], eng
         [[[0.5], [1.5]], [[-0.5], [-1.5]]],
     ],
 )
+def test_relu_forward(arr: llops.PyArrayRepr, engine: runtime.Engine) -> None:
+    with config.Configuration(engine=engine):
+        t = tensors.Tensor(arr).relu()
+        expected = np.maximum(0, np.array(arr))
+        assert np.allclose(t.symbol.realize().to_python(), expected.tolist(), atol=1e-6)
+
+
+@pytest.mark.parametrize(
+    "arr",
+    [
+        [1],
+        [0],
+        [-1],
+        [[0, 1], [-1, -2]],
+        [[[0.5], [1.5]], [[-0.5], [-1.5]]],
+    ],
+)
 def test_sigmoid_forward(arr: llops.PyArrayRepr, engine: runtime.Engine) -> None:
     with config.Configuration(engine=engine):
         t = tensors.Tensor(arr).sigmoid()
