@@ -1,4 +1,5 @@
 import numpy as np
+import pytest
 
 from skinnygrad import config, runtime, tensors
 
@@ -122,5 +123,25 @@ def test_single_element_slice_gradient_backprop(engine: runtime.Engine) -> None:
         assert np.allclose(tensor.gradient.realize().to_python(), expected_gradient)
 
 
-if __name__ == "__main__":
-    test_multidim_slice_gradient_backprop(runtime.NumPyEngine())
+@pytest.mark.parametrize(
+    "tensor_values, padding, expected_gradient",
+    [
+        ([[3.0, 1.0], [4.0, 2.0]], [(1, 1), (1, 1)], [[1.0, 1.0], [1.0, 1.0]]),
+        ([[3.0, 1.0], [4.0, 2.0]], [(0, 0), (0, 0)], [[1.0, 1.0], [1.0, 1.0]]),
+        ([[3.0, 1.0], [4.0, 2.0]], [(2, 0), (1, 3)], [[1.0, 1.0], [1.0, 1.0]]),
+        (
+            [[[3.0, 1.0], [4.0, 2.0]], [[5.0, 6.0], [7.0, 8.0]]],
+            [(1, 1), (1, 1), (1, 1)],
+            [[[1.0, 1.0], [1.0, 1.0]], [[1.0, 1.0], [1.0, 1.0]]],
+        ),
+        ([[3.0, 1.0, 2.0], [4.0, 2.0, 5.0]], [(1, 0), (0, 2)], [[1.0, 1.0, 1.0], [1.0, 1.0, 1.0]]),
+        ([[3.0]], [(1, 1), (1, 1)], [[1.0]]),
+    ],
+)
+def test_pad_gradient_backprop(engine: runtime.Engine, tensor_values, padding, expected_gradient) -> None:
+    with config.Configuration(engine=engine):
+        tensor = tensors.Tensor(tensor_values, requires_grad=True)
+        padded_tensor = tensor.pad(padding)
+        padded_tensor.sum().backprop()
+        assert tensor.gradient is not None
+        assert np.allclose(tensor.gradient.realize().to_python(), expected_gradient)

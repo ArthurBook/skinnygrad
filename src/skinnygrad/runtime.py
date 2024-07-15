@@ -61,7 +61,7 @@ class NumPyEngine(SequentialEngine[np.ndarray]):
         llops.Ops.BROADCAST: lambda src, newshape: np.broadcast_to(src, newshape.dims),
         llops.Ops.PERMUTE: np.transpose,
         llops.Ops.ASSIGN: lambda tgt, src, i: (np.copyto(tgt, src, where=i), tgt)[1],
-        llops.Ops.PAD: lambda src, loc, pad_val: np.pad(src, pad_width=loc, constant_values=(pad_val,)),
+        llops.Ops.PAD: lambda src, pads, pad_val: np.pad(src, pad_width=pads, constant_values=(pad_val,)),
         llops.Ops.NEG: np.negative,
         llops.Ops.ADD: np.add,
         llops.Ops.MUL: np.multiply,

@@ -1,4 +1,5 @@
 from typing import Sequence
+
 import pytest
 
 from skinnygrad import llops, shapes
@@ -120,7 +121,6 @@ def test_shape_slice_error(original_shape, slice_params):
         ((0,), [(1, 1)], (2,)),
         ((5, 10), [(0, 0), (3, 4)], (5, 17)),
         ((5,), [(1, 0)], (6,)),
-        # Large padding values
         ((10, 10), [(100, 100), (100, 100)], (210, 210)),
     ],
 )
@@ -145,7 +145,3 @@ def test_shape_pad(
 def test_shape_pad_error(original_shape, pad_params):
     with pytest.raises((ValueError, AssertionError)):
         shapes.Shape(original_shape).pad(*pad_params)
-
-
-if __name__ == "__main__":
-    test_shape_slice((10, 20, 30), [2, None, ..., 10], (1, 20, 1))

@@ -78,7 +78,3 @@ def test_numpy_engine_pad(input_data: llops.PyArrayRepr, pad_width: Sequence[tup
         y = llops.Ops.PAD(x, *pad_width)
         y_val = y.realize().to_python()
     assert y_val == expected_val
-
-
-if __name__ == "__main__":
-    test_numpy_engine_slice([[1, 2, 3]], (0, (1, 2)))

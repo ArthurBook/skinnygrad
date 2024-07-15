@@ -159,6 +159,18 @@ def select(symbol: llops.Symbol, loc: shapes.Loc | tuple[shapes.Loc, ...]) -> tu
     return forward, backward
 
 
+@llop_gradient
+def pad(symbol: llops.Symbol, pads: Sequence[tuple[int, int]], pad_val: int = 0) -> tuple[llops.Symbol, LazyGrad]:
+    def backward(output_grad: llops.Symbol) -> llops.Symbol:
+        slices = [(lpad, lpad + original) for (lpad, _), original in zip(pads, symbol.shape.dims, strict=True)]
+        grad_slice = llops.Ops.SELECT(output_grad, loc=slices, _skip_norm=True)
+        assert grad_slice.shape == symbol.shape, f"{grad_slice.shape=} != {symbol.shape=}"
+        return grad_slice
+
+    forward = llops.Ops.PAD(symbol, *pads, pad_val=pad_val)
+    return forward, backward
+
+
 def addaxes(autodiffable: AutoDiffInput[T], /, idx: int, n_dims: int) -> T:
     autodiffable = ensure_autodiffable(autodiffable)
     return reshape(autodiffable, autodiffable.shape.addaxes(idx, n_dims).dims)
@@ -188,7 +200,9 @@ def permute(symbol: llops.Symbol, /, *order: int) -> tuple[llops.Symbol, LazyGra
 
     def backward(output_grad: llops.Symbol) -> llops.Symbol:
         reversed_order = tuple(sorted(range(len(order)), key=order.__getitem__))
-        return llops.Ops.PERMUTE(output_grad, order=reversed_order)
+        output_grad = llops.Ops.PERMUTE(output_grad, order=reversed_order)
+        assert output_grad.shape == symbol.shape, f"{output_grad.shape=} != {symbol.shape=}"
+        return output_grad
 
     order = order if order else tuple(reversed(range(symbol.shape.ndims)))
     forward = llops.Ops.PERMUTE(symbol, order=order)
@@ -207,7 +221,10 @@ def broadcast(symbol: llops.Symbol, /, shape: Sequence[int]) -> tuple[llops.Symb
     def backward(output_grad: llops.Symbol) -> llops.Symbol:
         dims = itertools.zip_longest(reversed(shape), reversed(symbol.shape.dims), fillvalue=0)
         new_dims = tuple(-1 - idx for idx, (i, j) in enumerate(dims) if i != j)
-        return llops.Ops.SUM(output_grad, new_dims)
+        output_grad = llops.Ops.SUM(output_grad, new_dims)
+        if symbol.shape != output_grad.shape:
+            output_grad = llops.Ops.RESHAPE(output_grad, shape=symbol.shape)
+        return output_grad
 
     forward = llops.Ops.BROADCAST(symbol, shape=shapes.Shape(tuple(shape)))
     return forward, backward
@@ -228,7 +245,9 @@ def sum(symbol: llops.Symbol, /, axes: int | Sequence[int] | None = None) -> tup
         if axes is not None:
             prev_shape = output_grad.shape.insertaxes(*symbol.shape.normalize_dim_ref(*axes))
             output_grad = llops.Ops.RESHAPE(output_grad, shape=prev_shape)
-        return llops.Ops.BROADCAST(output_grad, shape=symbol.shape)
+        output_grad = llops.Ops.BROADCAST(output_grad, shape=symbol.shape)
+        assert output_grad.shape == symbol.shape, f"{output_grad.shape=} != {symbol.shape=}"
+        return output_grad
 
     if axes is None:
         flat_symbol = llops.Ops.RESHAPE(symbol, shape=symbol.shape.flat())
@@ -258,8 +277,8 @@ def mul(symbol1: llops.Symbol, symbol2: llops.Symbol) -> tuple[llops.Symbol, Laz
 
 def matmul(ad1: AutoDiffInput[T], ad2: AutoDiffInput[T], /) -> T:
     """
-    Matrix product ad1 and ad2.
-    Broadcasting logic a la [numpy](https://numpy.org/doc/stable/reference/generated/numpy.matmul.html)
+    Matrix product of ad1 and ad2.
+    Same broadcasting logic as [numpy.matmul](https://numpy.org/doc/stable/reference/generated/numpy.matmul.html)
     """
     t1, t2 = ensure_autodiffable(ad1), ensure_autodiffable(ad2)
     assert t1.shape.ndims > 0 and t2.shape.ndims > 0, f"matmul requires {t1=} and {t2=} to have at least 1 dim"
