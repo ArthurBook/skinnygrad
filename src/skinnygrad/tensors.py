@@ -25,6 +25,7 @@ class Tensor(autograd.AutoDiffable):
     __matmul__ = __rmatmul__ = autograd.matmul
     reciprocal = autograd.reciprocal
     sum = autograd.sum
+    max = autograd.amax
     # activations
     relu = autograd.relu
     sigmoid = autograd.sigmoid

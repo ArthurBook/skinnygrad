@@ -170,6 +170,7 @@ class Ops(enum.Enum):
     INV = Op(construct_unary)
     NEG = Op(construct_unary)
     EXP = Op(construct_unary)
+    EQ = Op(construct_binary)
     LESS = Op(construct_binary)
     ADD = Op(construct_binary)
     MUL = Op(construct_binary)

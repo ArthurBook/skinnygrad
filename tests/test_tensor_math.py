@@ -195,3 +195,25 @@ def test_sigmoid_forward(arr: llops.PyArrayRepr, engine: runtime.Engine) -> None
         t = tensors.Tensor(arr).sigmoid()
         expected = 1 / (1 + np.exp(-np.array(arr)))
         assert np.allclose(t.symbol.realize().to_python(), expected.tolist(), atol=1e-6)
+
+
+@pytest.mark.parametrize(
+    "data, axes, keepdims, expected",
+    [
+        # Basic Case
+        ([1, 2, 3, 4, 5], None, False, 5),
+        # Multi-dimensional Tensor
+        ([[1, 2, 3], [4, 5, 6]], 0, False, [4, 5, 6]),
+        ([[1, 2, 3], [4, 5, 6]], 1, False, [3, 6]),
+        # Keepdims Case
+        ([[1, 2, 3], [4, 5, 6]], 1, True, [[3], [6]]),
+        # Negative Values
+        ([-1, -2, -3, 0, 2, 4], None, False, 4),
+        # Edge Case: Single value
+        ([42], None, False, 42),
+    ],
+)
+def test_max(data, axes, keepdims, expected):
+    tensor = tensors.Tensor(data)
+    result = tensor.max(axes=axes, keepdims=keepdims)
+    assert np.allclose(result.realize(), expected), f"Expected {expected}, but got {result}"

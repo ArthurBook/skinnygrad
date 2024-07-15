@@ -67,6 +67,7 @@ class NumPyEngine(SequentialEngine[np.ndarray]):
         llops.Ops.NEG: np.negative,
         llops.Ops.ADD: np.add,
         llops.Ops.MUL: np.multiply,
+        llops.Ops.EQ: np.equal,
         llops.Ops.LESS: np.less,
         llops.Ops.SUM: np.sum,
         llops.Ops.AMAX: np.amax,

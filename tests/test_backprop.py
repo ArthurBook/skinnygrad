@@ -205,3 +205,29 @@ def test_sigmoid_backward(arr: llops.PyArrayRepr, grad: llops.PyArrayRepr, engin
         expected_grad = np.array(grad) * sigmoid_values * (1 - sigmoid_values)
         assert t.gradient is not None
         assert np.allclose(t.gradient.realize().to_python(), expected_grad.tolist(), atol=1e-6)
+
+
+@pytest.mark.parametrize(
+    "data, axes, keepdims, expected_grad",
+    [
+        # Basic Case
+        ([1, 2, 3, 4, 5], None, False, [0, 0, 0, 0, 1]),
+        # Multi-dimensional Tensor
+        ([[1, 2, 3], [4, 5, 6]], 0, False, [[0, 0, 0], [1, 1, 1]]),
+        ([[1, 2, 3], [4, 5, 6]], 1, False, [[0, 0, 1], [0, 0, 1]]),
+        # Keepdims Case
+        ([[1, 2, 3], [4, 5, 6]], 1, True, [[0, 0, 1], [0, 0, 1]]),
+        # Negative Values
+        ([-1, -2, -3, 0, 2, 4], None, False, [0, 0, 0, 0, 0, 1]),
+        # Edge Case: Single value
+        ([42], None, False, [1]),
+    ],
+)
+def test_max_backprop(data, axes, keepdims, expected_grad, engine: runtime.Engine):
+    with config.Configuration(engine=engine):
+        tensor = tensors.Tensor(data, requires_grad=True)
+        tensor.max(axes=axes, keepdims=keepdims).sum().backprop()
+        assert tensor.gradient is not None
+        assert np.allclose(
+            tensor.gradient.realize().to_python(), expected_grad
+        ), f"Expected gradient {expected_grad}, but got {tensor.gradient.realize().to_python()}"

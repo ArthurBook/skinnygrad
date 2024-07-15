@@ -300,20 +300,35 @@ def matmul(ad1: AutoDiffInput[T], ad2: AutoDiffInput[T], /) -> T:
 ### reduce gradient defs ###
 @llop_gradient
 def sum(symbol: llops.Symbol, /, axes: int | Sequence[int] | None = None) -> tuple[llops.Symbol, LazyGrad]:
-    axes = (axes,) if isinstance(axes, int) else axes
+    axes = parse_axes(axes, symbol.shape)
 
     def backward(output_grad: llops.Symbol) -> llops.Symbol:
-        if axes is not None:
-            prev_shape = output_grad.shape.insertaxes(*symbol.shape.normalize_dim_ref(*axes))
-            output_grad = llops.Ops.RESHAPE(output_grad, shape=prev_shape)
-        output_grad = llops.Ops.BROADCAST(output_grad, shape=symbol.shape)
-        assert output_grad.shape == symbol.shape, f"{output_grad.shape=} != {symbol.shape=}"
-        return output_grad
+        if len(axes) < len(symbol.shape):  # NOTE: add back dropped dims before expand
+            output_grad = llops.Ops.RESHAPE(output_grad, shape=output_grad.shape.insertaxes(*axes))
+        return llops.Ops.BROADCAST(output_grad, shape=symbol.shape)
 
-    if axes is None:
-        flat_symbol = llops.Ops.RESHAPE(symbol, shape=symbol.shape.flat())
-        return llops.Ops.SUM(flat_symbol, (0,)), backward
-    return llops.Ops.SUM(symbol, tuple(axes)), backward
+    return llops.Ops.SUM(symbol, axes=axes), backward
+
+
+@llop_gradient
+def amax(
+    symbol: llops.Symbol, /, axes: int | Sequence[int] | None = None, keepdims: bool = False
+) -> tuple[llops.Symbol, LazyGrad]:
+    axes = parse_axes(axes, symbol.shape)
+    forward = llops.Ops.AMAX(symbol, axes=axes)
+    if keepdims:
+        forward = llops.Ops.RESHAPE(forward, shape=forward.shape.insertaxes(*axes))
+
+    def backward(output_grad: llops.Symbol) -> llops.Symbol:
+        nonlocal forward
+        if not keepdims and len(axes) < len(symbol.shape):  # NOTE: add back dropped dims before expand
+            forward = llops.Ops.RESHAPE(forward, shape=forward.shape.insertaxes(*axes))
+            output_grad = llops.Ops.RESHAPE(output_grad, shape=output_grad.shape.insertaxes(*axes))
+        forward = llops.Ops.BROADCAST(forward, shape=symbol.shape)
+        output_grad = llops.Ops.BROADCAST(output_grad, shape=symbol.shape)
+        return llops.Ops.MUL(output_grad, llops.Ops.EQ(symbol, forward))
+
+    return forward, backward
 
 
 ### Ternary gradient defs ###
@@ -338,6 +353,18 @@ def get_common_broadcast_shape(*ads: AutoDiffable) -> shapes.Shape:
     if all(s == ads[0].shape for s in ads):
         return ads[0].shape
     return functools.reduce(lambda s1, s2: s1.broadcast(s2.shape), ads[1:], ads[0].shape)
+
+
+def parse_axes(axes: int | Sequence[int] | None, shape: shapes.Shape) -> tuple[int, ...]:
+    match axes:
+        case int(axis):
+            return shape.normalize_dim_ref(axis)
+        case tuple(axes):
+            return shape.normalize_dim_ref(*axes)
+        case None:
+            return tuple(range(shape.ndims))
+        case _:
+            raise TypeError(f"Expected int, Sequence[int], or None, got {axes=}")
 
 
 def ensure_autodiffable(ad: AutoDiffInput[T], /) -> T:
