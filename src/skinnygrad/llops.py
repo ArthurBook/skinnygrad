@@ -16,6 +16,7 @@ if TYPE_CHECKING:
 
 P, R = ParamSpec("P"), TypeVar("R")
 PyArrayRepr = int | float | bool | Sequence["PyArrayRepr"]
+OpSignature = tuple[shapes.Shape, inspect.BoundArguments]
 
 
 @dataclasses.dataclass(slots=True)
@@ -68,7 +69,7 @@ class Symbol(Generic[P]):
 
 @dataclasses.dataclass(slots=True, unsafe_hash=True)
 class Op(Generic[P]):
-    constructor: Callable[P, tuple[shapes.Shape, inspect.BoundArguments]]
+    constructor: Callable[P, OpSignature]
     name: str = dataclasses.field(init=False)
 
     def __call__(self, *args: P.args, **kwds: P.kwargs) -> Symbol[P]:
@@ -87,43 +88,54 @@ class Op(Generic[P]):
         return str(self)
 
 
-def construct_load(data: PyArrayRepr, /) -> tuple[shapes.Shape, inspect.BoundArguments]:
+def construct_load(data: PyArrayRepr, /) -> OpSignature:
     return shapes.Shape.from_data(data), bind(construct_load, data)
 
 
-def construct_reshape(s: Symbol, /, *, shape: shapes.Shape) -> tuple[shapes.Shape, inspect.BoundArguments]:
+def construct_slice(s: Symbol, /, *, loc: Sequence[shapes.Loc], _skip_norm: bool = False) -> OpSignature:
+    loc = loc if _skip_norm else s.shape.normalize_loc(loc)
+    newshape = s.shape.slice(*loc, _skip_norm=True)
+    return newshape, bind(construct_slice, s, loc=loc)
+
+
+def construct_pad(s: Symbol, /, *loc: tuple[int, int], pad_val: float = 0) -> OpSignature:
+    assert len(loc) == s.shape.ndims, f"{s.shape=} <> {loc=} must have same number of dimensions"
+    assert all(len(l) == 2 for l in loc), f"{loc=} must be a sequence of (left, right) padding values"
+    assert all(l[0] >= 0 and l[1] >= 0 for l in loc), f"{loc=} must all be non-negative"
+    return s.shape.pad(*loc), bind(construct_pad, s, *loc, pad_val=pad_val)
+
+
+def construct_reshape(s: Symbol, /, *, shape: shapes.Shape) -> OpSignature:
     assert s.shape.size == shape.size, f"{s.shape=} <> {shape=} size mismatch"
     return shape, bind(construct_reshape, s, shape=shape)
 
 
-def construct_broadcast(s: Symbol, /, *, shape: shapes.Shape) -> tuple[shapes.Shape, inspect.BoundArguments]:
+def construct_broadcast(s: Symbol, /, *, shape: shapes.Shape) -> OpSignature:
     return s.shape.broadcast(shape), bind(construct_broadcast, s, shape=shape)
 
 
-def construct_permute(s: Symbol, /, *, order: Sequence[int]) -> tuple[shapes.Shape, inspect.BoundArguments]:
+def construct_permute(s: Symbol, /, *, order: Sequence[int]) -> OpSignature:
     assert len(order) == s.shape.ndims, f"{s.shape=} <> {order=} must have same number of dimensions"
-    return s.shape.permute(order), bind(construct_permute, s, order=s.shape.normalize_idxs(*order))
+    return s.shape.permute(order), bind(construct_permute, s, order=s.shape.normalize_dim_ref(*order))
 
 
-def construct_assign(
-    s1: Symbol, s2: Symbol, /, *, loc: slice | bool = True
-) -> tuple[shapes.Shape, inspect.BoundArguments]:
+def construct_assign(s1: Symbol, s2: Symbol, /, *, loc: slice | bool = True) -> OpSignature:
     assert_shape_match(s1, s2)  # TODO: loc
     return s1.shape, bind(construct_assign, s1, s2, loc=loc)
 
 
-def construct_unary(s: Symbol, /) -> tuple[shapes.Shape, inspect.BoundArguments]:
+def construct_unary(s: Symbol, /) -> OpSignature:
     return s.shape, bind(construct_unary, s)
 
 
-def construct_binary(s1: Symbol, s2: Symbol, /) -> tuple[shapes.Shape, inspect.BoundArguments]:
+def construct_binary(s1: Symbol, s2: Symbol, /) -> OpSignature:
     assert_shape_match(s1, s2)
     return s1.shape, bind(construct_binary, s1, s2)
 
 
-def construct_reduce(s: Symbol, /, axes: tuple[int, ...]) -> tuple[shapes.Shape, inspect.BoundArguments]:
+def construct_reduce(s: Symbol, /, axes: tuple[int, ...]) -> OpSignature:
     assert isinstance(s, Symbol), f"{s=} must be symbol"
-    ndims, normed_axes = s.shape.ndims, sorted(s.shape.normalize_idxs(*axes), reverse=True)
+    ndims, normed_axes = s.shape.ndims, sorted(s.shape.normalize_dim_ref(*axes), reverse=True)
     assert all(0 <= ax < ndims for ax in ()), f"{axes=} must be in range [0, {ndims=}]"
     return s.shape.dropaxes(*normed_axes), bind(construct_reduce, s, tuple(normed_axes))
 
@@ -148,6 +160,8 @@ class Ops(enum.Enum):
     RESHAPE = Op(construct_reshape)
     BROADCAST = Op(construct_broadcast)
     PERMUTE = Op(construct_permute)
+    SELECT = Op(construct_slice)
+    PAD = Op(construct_pad)
     NEG = Op(construct_unary)
     ADD = Op(construct_binary)
     MUL = Op(construct_binary)

@@ -7,7 +7,7 @@ from visualization import formatting
 
 from skinnygrad import callbacks, llops
 
-FORMATS_DIR = pathlib.Path(__file__).parent.parent.parent / "formatting"
+FORMATS_DIR = pathlib.Path(__file__).parent / "formats"
 
 
 class GraphVisualizer(callbacks.OnSymbolInitCallBack, callbacks.OnCtxExitCallBack):
@@ -43,7 +43,7 @@ class GraphVisualizer(callbacks.OnSymbolInitCallBack, callbacks.OnCtxExitCallBac
         self.graph.add_node(data_nodename, label=str(symbol.shape.dims), **data_fmt)  # data
         edge_fmt = self.edge_formatter.get_fmt()
         self.graph.add_edge(op_nodename, data_nodename, **edge_fmt)
-        for in_edge in symbol.src:
+        for in_edge in symbol.symbol_args.values():
             self.graph.add_edge(_get_data_nodename(in_edge), op_nodename, **edge_fmt)
 
     def on_ctx_exit(self, exc_type: Any, exc_value: Any, traceback: Any) -> None:

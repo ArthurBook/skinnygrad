@@ -5,20 +5,25 @@ Shape tracking
 from __future__ import annotations
 
 import dataclasses
+import itertools
 import math
+import types
 from typing import TYPE_CHECKING, Iterator, Sequence
 
 if TYPE_CHECKING:
     from skinnygrad import llops
 
+Loc = None | int | types.EllipsisType | tuple[None | int, None | int]
+
 
 @dataclasses.dataclass(slots=True, frozen=True)
-class Shape(Sequence[int]):
+class Shape:
     dims: tuple[int, ...]
 
-    def __getitem__(self, index: int | slice) -> Shape:
-        dims = self.dims[index]
-        return Shape((dims,) if isinstance(dims, int) else dims)
+    def slice(self, *locs: Loc, _skip_norm: bool = False) -> Shape:
+        locs = locs if _skip_norm else self.normalize_loc(locs)
+        slice_dims = (loc for loc in locs if isinstance(loc, tuple))
+        return Shape(tuple(end - start for start, end in slice_dims))  # type: ignore
 
     def __eq__(self, other: object) -> bool:
         return isinstance(other, Shape) and self.dims == other.dims
@@ -65,6 +70,13 @@ class Shape(Sequence[int]):
     def addaxes(self, idx: int, n_dims: int) -> Shape:
         return Shape(self.dims[:idx] + (1,) * n_dims + self.dims[idx:])
 
+    def pad(self, *pad_per_dim: tuple[int, int]) -> Shape:
+        assert len(pad_per_dim) == len(self), f"{len(pad_per_dim)=} != {len(self)=}"
+        assert all(len(p) == 2 for p in pad_per_dim), f"{pad_per_dim=} is not a sequence of pairs"
+        assert all(all(isinstance(i, int) for i in p) for p in pad_per_dim), f"{pad_per_dim=} contains non-ints"
+        assert all(all(i >= 0 for i in p) for p in pad_per_dim), f"{pad_per_dim=} contains negative ints"
+        return Shape(tuple(d + l + r for (l, r), d in zip(pad_per_dim, self)))
+
     def lpad(self, n_dims: int) -> Shape:
         return self.addaxes(0, n_dims)
 
@@ -72,13 +84,46 @@ class Shape(Sequence[int]):
         return self.addaxes(len(self), n_dims)
 
     def dropaxes(self, *axes: int) -> Shape:
-        pos_axes = set(self.normalize_idxs(*axes))
+        pos_axes = set(self.normalize_dim_ref(*axes))
         return Shape(tuple(d for i, d in enumerate(self) if i not in pos_axes))
 
     def flat(self) -> Shape:
         return Shape((self.size,))
 
-    def normalize_idxs(self, *idxs: int) -> tuple[int, ...]:
+    def normalize_loc(self, locs: Sequence[Loc]) -> tuple[int | tuple[int, int], ...]:
+        assert (n_ellpises := (locs := list(locs)).count(Ellipsis)) <= 1, f"too many ellipses in {locs=}"
+        assert (nlocs := len(locs) - n_ellpises) <= (ndims := self.ndims), f"more {nlocs=} than {ndims=}"
+        assert (n_pads := ndims - nlocs) >= 0, f"{nlocs=} - {n_ellpises=} > {ndims=}"
+        pad_loc = locs.index(Ellipsis) if n_ellpises else ndims
+        locs = locs[:pad_loc] + [None] * n_pads + locs[pad_loc + 1 :]
+
+        def normalize_slice(dim_i: int, slice_: Loc) -> int | tuple[int, int]:
+            match slice_:
+                case int(idx_slice):
+                    return self.normalize_dim_slice_idx(dim_i, idx_slice)
+                case None:
+                    return (0, self.dims[dim_i])
+                case (start, end):
+                    start = self.normalize_dim_slice_idx(dim_i, start, default=0)
+                    end = self.normalize_dim_slice_idx(dim_i, end, default=self.dims[dim_i])
+                    assert 0 <= start < end <= self.dims[dim_i], f"{locs[dim_i]=} out of bounds for {self.dims[dim_i]=}"
+                    return (start, end)
+                case _:
+                    raise ValueError(f"Unrecognized position type: {locs[dim_i]=}")
+
+        assert len(locs) == self.ndims, f"{len(locs)=} != {self.ndims=}"
+        return tuple(itertools.starmap(normalize_slice, enumerate(locs)))
+
+    def normalize_dim_slice_idx(self, dim: int, slice_: int | None, /, default: int | None = None) -> int:
+        (dim,) = self.normalize_dim_ref(dim)
+        if slice_ is None:
+            assert default is not None, f"{slice_=} is None and {default=} is None"
+            return default
+        slice_ = slice_ % self.dims[dim] if slice_ < 0 else slice_
+        assert 0 <= slice_ <= self.dims[dim], f"{slice_=} out of bounds for {self.dims[dim]=}"
+        return slice_
+
+    def normalize_dim_ref(self, *idxs: int) -> tuple[int, ...]:
         own_len = len(self)
         return tuple(idx % own_len if idx < 0 else idx for idx in idxs)
 

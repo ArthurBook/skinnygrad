@@ -14,6 +14,9 @@ class Tensor(autograd.AutoDiffable):
     flatten = autograd.flatten
     permute = autograd.permute
     transpose = autograd.transpose
+    # movement
+    __getitem__ = autograd.select
+    pad = autograd.pad
     # arithmetic
     __add__ = __radd__ = autograd.add
     __sub__ = __rsub__ = autograd.sub
