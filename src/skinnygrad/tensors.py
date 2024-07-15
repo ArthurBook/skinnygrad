@@ -29,3 +29,4 @@ class Tensor(autograd.AutoDiffable):
     # activations
     relu = autograd.relu
     sigmoid = autograd.sigmoid
+    softmax = autograd.softmax

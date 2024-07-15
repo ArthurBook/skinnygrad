@@ -232,6 +232,13 @@ def neg(symbol: llops.Symbol) -> tuple[llops.Symbol, LazyGrad]:
 
 
 @llop_gradient
+def exp(symbol: llops.Symbol) -> tuple[llops.Symbol, LazyGrad]:
+    forward = llops.Ops.EXP(symbol)
+    backward = lambda output_grad: llops.Ops.MUL(forward, output_grad)
+    return forward, backward
+
+
+@llop_gradient
 def reciprocal(symbol: llops.Symbol) -> tuple[llops.Symbol, LazyGrad]:
     forward = llops.Ops.INV(symbol)
 
@@ -299,15 +306,20 @@ def matmul(ad1: AutoDiffInput[T], ad2: AutoDiffInput[T], /) -> T:
 
 ### reduce gradient defs ###
 @llop_gradient
-def sum(symbol: llops.Symbol, /, axes: int | Sequence[int] | None = None) -> tuple[llops.Symbol, LazyGrad]:
+def sum(
+    symbol: llops.Symbol, /, axes: int | Sequence[int] | None = None, keepdims: bool = False
+) -> tuple[llops.Symbol, LazyGrad]:
     axes = parse_axes(axes, symbol.shape)
+    forward = llops.Ops.SUM(symbol, axes=axes)
+    if keepdims:
+        forward = llops.Ops.RESHAPE(forward, shape=forward.shape.insertaxes(*axes))
 
     def backward(output_grad: llops.Symbol) -> llops.Symbol:
-        if len(axes) < len(symbol.shape):  # NOTE: add back dropped dims before expand
+        if not keepdims and len(axes) < len(symbol.shape):  # NOTE: add back dropped dims before expand
             output_grad = llops.Ops.RESHAPE(output_grad, shape=output_grad.shape.insertaxes(*axes))
         return llops.Ops.BROADCAST(output_grad, shape=symbol.shape)
 
-    return llops.Ops.SUM(symbol, axes=axes), backward
+    return forward, backward
 
 
 @llop_gradient
@@ -324,9 +336,11 @@ def amax(
         if not keepdims and len(axes) < len(symbol.shape):  # NOTE: add back dropped dims before expand
             forward = llops.Ops.RESHAPE(forward, shape=forward.shape.insertaxes(*axes))
             output_grad = llops.Ops.RESHAPE(output_grad, shape=output_grad.shape.insertaxes(*axes))
-        forward = llops.Ops.BROADCAST(forward, shape=symbol.shape)
-        output_grad = llops.Ops.BROADCAST(output_grad, shape=symbol.shape)
-        return llops.Ops.MUL(output_grad, llops.Ops.EQ(symbol, forward))
+        return llops.Ops.WHERE(
+            llops.Ops.EQ(symbol, llops.Ops.BROADCAST(forward, shape=symbol.shape)),
+            llops.Ops.BROADCAST(output_grad, shape=symbol.shape),
+            llops.Ops.BROADCAST(llops.Ops.READ(0), shape=symbol.shape),
+        )
 
     return forward, backward
 
@@ -346,6 +360,14 @@ def where(s1: llops.Symbol, s2: llops.Symbol, s3: llops.Symbol) -> tuple[llops.S
         return llops.Ops.WHERE(s1, llops.Ops.BROADCAST(llops.Ops.READ(0), shape=output_grad.shape), output_grad)
 
     return forward, backward1, backward2, backward3
+
+
+def softmax(ad: AutoDiffInput[T], /, axes: int | Sequence[int] | None = None) -> T:
+    ad = ensure_autodiffable(ad)
+    axes = parse_axes(axes, ad.shape)
+    t_exp = exp(sub(ad, amax(ad, axes, keepdims=True)))
+    t_sum = sum(t_exp, axes, keepdims=True)
+    return div(t_exp, t_sum)
 
 
 ### helpers ###

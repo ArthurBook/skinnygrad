@@ -217,3 +217,34 @@ def test_max(data, axes, keepdims, expected):
     tensor = tensors.Tensor(data)
     result = tensor.max(axes=axes, keepdims=keepdims)
     assert np.allclose(result.realize(), expected), f"Expected {expected}, but got {result}"
+
+
+@pytest.mark.parametrize(
+    "data, axes, expected",
+    [
+        # Basic Case: single dimensional softmax
+        ([1, 2, 3, 4, 5], None, np.exp([1, 2, 3, 4, 5]) / np.sum(np.exp([1, 2, 3, 4, 5]))),
+        # Multi-dimensional Tensor, softmax over axis 0
+        (
+            [[1, 2, 3], [4, 5, 6]],
+            0,
+            np.exp([[1, 2, 3], [4, 5, 6]]) / np.sum(np.exp([[1, 2, 3], [4, 5, 6]]), axis=0),
+        ),
+        # Multi-dimensional Tensor, softmax over axis 1
+        (
+            [[1, 2, 3], [4, 5, 6]],
+            1,
+            np.exp([[1, 2, 3], [4, 5, 6]]) / np.sum(np.exp([[1, 2, 3], [4, 5, 6]]), axis=1, keepdims=True),
+        ),
+        # Negative Values
+        ([-1, -2, -3, 0, 2, 4], None, np.exp([-1, -2, -3, 0, 2, 4]) / np.sum(np.exp([-1, -2, -3, 0, 2, 4]))),
+        # Edge Case: Single value
+        ([42], None, [1.0]),
+        # Edge Case: Tensor with all zeros (uniform probabilities)
+        ([0, 0, 0, 0], None, [0.25, 0.25, 0.25, 0.25]),
+    ],
+)
+def test_softmax(data, axes, expected):
+    tensor = tensors.Tensor(data)
+    result = tensor.softmax(axes=axes)
+    assert np.allclose(result.realize(), expected), f"Expected {expected}, but got {result.realize()}"

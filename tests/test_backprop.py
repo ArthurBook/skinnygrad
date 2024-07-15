@@ -1,3 +1,4 @@
+from typing import cast
 import numpy as np
 import pytest
 
@@ -231,3 +232,39 @@ def test_max_backprop(data, axes, keepdims, expected_grad, engine: runtime.Engin
         assert np.allclose(
             tensor.gradient.realize().to_python(), expected_grad
         ), f"Expected gradient {expected_grad}, but got {tensor.gradient.realize().to_python()}"
+
+
+@pytest.mark.parametrize(
+    "data, axes, index",
+    [
+        ([1, 2, 3, 4, 5], None, (2,)),  # Basic Case: checking the third element
+        ([[1, 2, 3], [4, 5, 6]], 0, (1, 2)),  # Multi-dimensional Tensor over axis 0, checking element (1, 2)
+        ([[1, 2, 3], [4, 5, 6]], 1, (1, 0)),  # Multi-dimensional Tensor over axis 1, checking element (1, 0)
+        ([-1, -2, -3, 0, 2, 4], None, (3,)),  # Negative Values, checking fourth element
+        ([42], None, (0,)),  # Edge Case: Single value, checking the first (and only) element
+    ],
+)
+def test_softmax_backprop_vs_finite_diffs(data, axes: int | None, index: tuple, engine: runtime.Engine) -> None:
+    DELTA = 1e-6
+    with config.Configuration(engine=engine):
+        tensor = tensors.Tensor(data, requires_grad=True)
+        softmax_output = tensor.softmax(axes=axes)
+        softmax_output[*index].backprop()
+
+        data1 = np.array(data).astype(np.float64)
+        data1[*index] += DELTA
+        t_d1 = tensors.Tensor(data1.tolist())
+        softmax_d1 = t_d1.softmax(axes=axes)[*index]
+
+        data2 = np.array(data).astype(np.float64)
+        data2[*index] -= DELTA
+        t_d2 = tensors.Tensor(data2.tolist())
+        softmax_d2 = t_d2.softmax(axes=axes)[*index]
+
+        finite_diff_grad = 0.5 * (softmax_d1 - softmax_d2) / DELTA
+        assert tensor.gradient is not None
+        assert np.allclose(
+            np.array(tensor.gradient.realize().to_python())[*index],
+            finite_diff_grad.realize(),
+            atol=1e-6,
+        )
