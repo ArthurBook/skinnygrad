@@ -282,6 +282,10 @@ def mul(symbol1: llops.Symbol, symbol2: llops.Symbol) -> tuple[llops.Symbol, Laz
     return forward, backward1, backward2
 
 
+def div(ad1: AutoDiffInput[T], ad2: AutoDiffInput[T], /) -> T:
+    return mul(ad1, reciprocal(ad2))
+
+
 def matmul(ad1: AutoDiffInput[T], ad2: AutoDiffInput[T], /) -> T:
     """
     Matrix product of ad1 and ad2.

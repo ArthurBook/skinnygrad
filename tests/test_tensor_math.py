@@ -58,6 +58,30 @@ def test_mul(arr1: llops.PyArrayRepr, arr2: llops.PyArrayRepr, engine: runtime.E
 @pytest.mark.parametrize(
     "arr1, arr2",
     [
+        (1, 2),
+        ([[1], [2], [3]], [[[1, 2]]]),
+        ([[1, 2, 3]], [[[1]], [[2]], [[3]]]),
+        (1, [[[1, 2]]]),
+        ([[1, 2]], 1),
+        ([[1, 2]], [[1], [2]]),
+        ([[0]], [[1]]),  # Zero divided by a number
+        ([[1, 2, 3]], [[4, 5, 6]]),  # Element-wise division
+        ([[1, 2]], [[3], [4]]),  # Broadcast
+        ([[1, 2]], [[[3, 4]]]),  # Three-dimensional with two-dimensional
+        ([[-1, -2, -3]], [[1, 2, 3]]),  # Negative numbers
+        ([[1.5, 2.5]], [[2, 3]]),  # Floating points
+    ],
+)
+def test_div(arr1: llops.PyArrayRepr, arr2: llops.PyArrayRepr, engine: runtime.Engine) -> None:
+    np_result = np.array(arr1) / np.array(arr2)
+    with config.Configuration(engine=engine):
+        t = tensors.Tensor(arr1) / tensors.Tensor(arr2)
+        assert np.allclose(t.realize(), np_result.tolist())
+
+
+@pytest.mark.parametrize(
+    "arr1, arr2",
+    [
         # Typical square matrices
         ([[1, 2], [3, 4]], [[5, 6], [7, 8]]),
         ([[1, 0, 2], [-1, 3, 1]], [[3, 1], [2, 1], [1, 0]]),
