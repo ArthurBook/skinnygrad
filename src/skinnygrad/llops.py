@@ -155,7 +155,7 @@ def assert_shape_match(*symbols: Symbol) -> None:
 class Ops(enum.Enum):
     """Low level ops that define & execute the computational graph"""
 
-    LOAD = Op(construct_load)
+    READ = Op(construct_load)
     ASSIGN = Op(construct_assign)
     RESHAPE = Op(construct_reshape)
     BROADCAST = Op(construct_broadcast)
@@ -168,3 +168,4 @@ class Ops(enum.Enum):
     ADD = Op(construct_binary)
     MUL = Op(construct_binary)
     SUM = Op(construct_reduce)
+    AMAX = Op(construct_reduce)

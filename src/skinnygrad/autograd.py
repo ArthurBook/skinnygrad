@@ -29,7 +29,7 @@ BinaryAutoDiffFunc = Callable[Concatenate[AutoDiffInput[T], AutoDiffInput[T], P]
 ### Base for autodiff ###
 class AutoDiffable(abc.ABC):
     def __init__(self, data: llops.PyArrayRepr | llops.Symbol, requires_grad: bool = False) -> None:
-        self.symbol = data if isinstance(data, llops.Symbol) else llops.Ops.LOAD(data)
+        self.symbol = data if isinstance(data, llops.Symbol) else llops.Ops.READ(data)
         self.requires_grad = requires_grad
         self.gradient: llops.Symbol | None = None
         self._backprops: tuple[Backprop, ...] = ()
@@ -50,7 +50,7 @@ class AutoDiffable(abc.ABC):
         assert self.requires_grad, f"backprop called on tensor with {self.requires_grad=}"
         assert self.shape.size == 1, f"backprop called on tensor with non-scalar {self.shape=}"
         assert self._backprops, f"backprop called on tensor with no grad graph"
-        self._backward(llops.Ops.BROADCAST(llops.Ops.LOAD(1), shape=self.shape))
+        self._backward(llops.Ops.BROADCAST(llops.Ops.READ(1), shape=self.shape))
 
     def _backward(self, delta: llops.Symbol) -> None:
         assert self.requires_grad, f"_backward called on tensor with {self.requires_grad=}"
@@ -176,16 +176,6 @@ def addaxes(autodiffable: AutoDiffInput[T], /, idx: int, n_dims: int) -> T:
     return reshape(autodiffable, autodiffable.shape.addaxes(idx, n_dims).dims)
 
 
-def lpad(autodiffable: AutoDiffInput[T], /, n_dims: int) -> T:
-    autodiffable = ensure_autodiffable(autodiffable)
-    return addaxes(autodiffable, 0, n_dims)
-
-
-def rpad(autodiffable: AutoDiffInput[T], /, n_dims: int) -> T:
-    autodiffable = ensure_autodiffable(autodiffable)
-    return addaxes(autodiffable, autodiffable.shape.ndims, n_dims)
-
-
 def flatten(autodiffable: AutoDiffInput[T], /) -> T:
     autodiffable = ensure_autodiffable(autodiffable)
     return reshape(autodiffable, autodiffable.shape.flat().dims)
@@ -239,7 +229,7 @@ def neg(symbol: llops.Symbol) -> tuple[llops.Symbol, LazyGrad]:
 
 @llop_gradient
 def sigmoid(symbol: llops.Symbol) -> tuple[llops.Symbol, LazyGrad]:
-    ones = llops.Ops.BROADCAST(llops.Ops.LOAD(1), shape=symbol.shape)
+    ones = llops.Ops.BROADCAST(llops.Ops.READ(1), shape=symbol.shape)
     forward = llops.Ops.INV(llops.Ops.ADD(ones, llops.Ops.EXP(llops.Ops.NEG(symbol))))
 
     def backward(output_grad: llops.Symbol) -> llops.Symbol:
