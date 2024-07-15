@@ -50,7 +50,7 @@ class AutoDiffable(abc.ABC):
         assert self.requires_grad, f"backprop called on tensor with {self.requires_grad=}"
         assert self.shape.size == 1, f"backprop called on tensor with non-scalar {self.shape=}"
         assert self._backprops, f"backprop called on tensor with no grad graph"
-        self._backward(llops.Ops.LOAD(1))
+        self._backward(llops.Ops.BROADCAST(llops.Ops.LOAD(1), shape=self.shape))
 
     def _backward(self, delta: llops.Symbol) -> None:
         assert self.requires_grad, f"_backward called on tensor with {self.requires_grad=}"
@@ -238,21 +238,15 @@ def neg(symbol: llops.Symbol) -> tuple[llops.Symbol, LazyGrad]:
 
 
 @llop_gradient
-def sum(symbol: llops.Symbol, /, axes: int | Sequence[int] | None = None) -> tuple[llops.Symbol, LazyGrad]:
-    axes = (axes,) if isinstance(axes, int) else axes
+def sigmoid(symbol: llops.Symbol) -> tuple[llops.Symbol, LazyGrad]:
+    ones = llops.Ops.BROADCAST(llops.Ops.LOAD(1), shape=symbol.shape)
+    forward = llops.Ops.INV(llops.Ops.ADD(ones, llops.Ops.EXP(llops.Ops.NEG(symbol))))
 
     def backward(output_grad: llops.Symbol) -> llops.Symbol:
-        if axes is not None:
-            prev_shape = output_grad.shape.insertaxes(*symbol.shape.normalize_dim_ref(*axes))
-            output_grad = llops.Ops.RESHAPE(output_grad, shape=prev_shape)
-        output_grad = llops.Ops.BROADCAST(output_grad, shape=symbol.shape)
-        assert output_grad.shape == symbol.shape, f"{output_grad.shape=} != {symbol.shape=}"
-        return output_grad
+        sigmoid_grad = llops.Ops.MUL(forward, llops.Ops.ADD(ones, llops.Ops.NEG(forward)))
+        return llops.Ops.MUL(output_grad, sigmoid_grad)
 
-    if axes is None:
-        flat_symbol = llops.Ops.RESHAPE(symbol, shape=symbol.shape.flat())
-        return llops.Ops.SUM(flat_symbol, (0,)), backward
-    return llops.Ops.SUM(symbol, tuple(axes)), backward
+    return forward, backward
 
 
 ### Binary gradient defs ###
@@ -284,6 +278,25 @@ def matmul(ad1: AutoDiffInput[T], ad2: AutoDiffInput[T], /) -> T:
     assert t1.shape.ndims > 0 and t2.shape.ndims > 0, f"matmul requires {t1=} and {t2=} to have at least 1 dim"
     t1_bc, t2_bc = addaxes(t1, -1, 1), transpose(addaxes(t2, -2, 1), -1, -2)
     return sum(mul(t1_bc, t2_bc), -1)
+
+
+### reduce gradient defs ###
+@llop_gradient
+def sum(symbol: llops.Symbol, /, axes: int | Sequence[int] | None = None) -> tuple[llops.Symbol, LazyGrad]:
+    axes = (axes,) if isinstance(axes, int) else axes
+
+    def backward(output_grad: llops.Symbol) -> llops.Symbol:
+        if axes is not None:
+            prev_shape = output_grad.shape.insertaxes(*symbol.shape.normalize_dim_ref(*axes))
+            output_grad = llops.Ops.RESHAPE(output_grad, shape=prev_shape)
+        output_grad = llops.Ops.BROADCAST(output_grad, shape=symbol.shape)
+        assert output_grad.shape == symbol.shape, f"{output_grad.shape=} != {symbol.shape=}"
+        return output_grad
+
+    if axes is None:
+        flat_symbol = llops.Ops.RESHAPE(symbol, shape=symbol.shape.flat())
+        return llops.Ops.SUM(flat_symbol, (0,)), backward
+    return llops.Ops.SUM(symbol, tuple(axes)), backward
 
 
 ### helpers ###

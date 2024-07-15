@@ -1,7 +1,7 @@
 import numpy as np
 import pytest
 
-from skinnygrad import config, runtime, tensors
+from skinnygrad import config, llops, runtime, tensors
 
 
 def test_dotprod_backprop(engine: runtime.Engine) -> None:
@@ -145,3 +145,24 @@ def test_pad_gradient_backprop(engine: runtime.Engine, tensor_values, padding, e
         padded_tensor.sum().backprop()
         assert tensor.gradient is not None
         assert np.allclose(tensor.gradient.realize().to_python(), expected_gradient)
+
+
+@pytest.mark.parametrize(
+    "arr, grad",
+    [
+        ([1], [1]),
+        ([0], [1]),
+        ([-1], [1]),
+        ([[0, 1], [-1, -2]], [[1, 1], [1, 1]]),
+        ([[[0.5], [1.5]], [[-0.5], [-1.5]]], [[[1], [1]], [[1], [1]]]),
+    ],
+)
+def test_sigmoid_backward(arr: llops.PyArrayRepr, grad: llops.PyArrayRepr, engine: runtime.Engine) -> None:
+    with config.Configuration(engine=engine):
+        t = tensors.Tensor(arr, requires_grad=True)
+        t.sigmoid().sum().backprop()
+
+        sigmoid_values = 1 / (1 + np.exp(-np.array(arr)))
+        expected_grad = np.array(grad) * sigmoid_values * (1 - sigmoid_values)
+        assert t.gradient is not None
+        assert np.allclose(t.gradient.realize().to_python(), expected_grad.tolist(), atol=1e-6)

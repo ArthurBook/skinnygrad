@@ -62,11 +62,12 @@ class NumPyEngine(SequentialEngine[np.ndarray]):
         llops.Ops.PERMUTE: np.transpose,
         llops.Ops.ASSIGN: lambda tgt, src, i: (np.copyto(tgt, src, where=i), tgt)[1],
         llops.Ops.PAD: lambda src, pads, pad_val: np.pad(src, pad_width=pads, constant_values=(pad_val,)),
+        llops.Ops.EXP: np.exp,
         llops.Ops.NEG: np.negative,
+        llops.Ops.INV: np.reciprocal,
         llops.Ops.ADD: np.add,
         llops.Ops.MUL: np.multiply,
         llops.Ops.SUM: np.sum,
-        llops.Ops.MAX: np.amax,
     }
 
     def execute(self, op: llops.Op, *args: np.ndarray | Any) -> np.ndarray:
