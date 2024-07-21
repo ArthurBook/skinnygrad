@@ -375,7 +375,7 @@ description = "logger for the skinnygrad package"
 optional = false
 python-versions = "^3.11"
 files = []
-develop = false
+develop = true
 
 [package.dependencies]
 skinnygrad = "*"
@@ -391,7 +391,7 @@ description = "visualizer for the skinnygrad package"
 optional = false
 python-versions = "^3.11"
 files = []
-develop = false
+develop = true
 
 [package.dependencies]
 graphviz = "^0.20.3"
@@ -431,4 +431,4 @@ visualizer = ["skinnygrad-visualizer"]
 [metadata]
 lock-version = "2.0"
 python-versions = "^3.11"
-content-hash = "37f1c33520166b505bb36483026dabbabdae4486653227ef2a5ae7f457b8d63a"
+content-hash = "9910c7e3dd19198070d95630c1a83cbc90d930a77c002b208704431d4acd54c4"

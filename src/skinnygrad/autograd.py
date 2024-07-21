@@ -52,7 +52,10 @@ class AutoDiffable(abc.ABC):
         assert self.requires_grad, f"backprop called on tensor with {self.requires_grad=}"
         assert self.shape.size == 1, f"backprop called on tensor with non-scalar {self.shape=}"
         assert self._backprops, f"backprop called on tensor with no grad graph"
-        self._backward(llops.Ops.BROADCAST(llops.Ops.READ(1), shape=self.shape))
+        fill_grad = llops.Ops.READ(1)
+        if fill_grad.shape!= self.shape:
+            fill_grad=llops.Ops.BROADCAST(fill_grad, shape=self.shape)
+        self._backward(fill_grad)
 
     def _backward(self, delta: llops.Symbol) -> None:
         assert self.requires_grad, f"_backward called on tensor with {self.requires_grad=}"
@@ -348,8 +351,6 @@ def amax(
 ### Ternary gradient defs ###
 @llop_gradient
 def where(s1: llops.Symbol, s2: llops.Symbol, s3: llops.Symbol) -> tuple[llops.Symbol, LazyGrad, LazyGrad, LazyGrad]:
-    forward = llops.Ops.WHERE(s1, s2, s3)
-
     def backward1(_: llops.Symbol) -> llops.Symbol:
         raise NotImplementedError("No gradient defined for where condition")
 
@@ -359,7 +360,7 @@ def where(s1: llops.Symbol, s2: llops.Symbol, s3: llops.Symbol) -> tuple[llops.S
     def backward3(output_grad: llops.Symbol) -> llops.Symbol:
         return llops.Ops.WHERE(s1, llops.Ops.BROADCAST(llops.Ops.READ(0), shape=output_grad.shape), output_grad)
 
-    return forward, backward1, backward2, backward3
+    return llops.Ops.WHERE(s1, s2, s3), backward1, backward2, backward3
 
 
 def softmax(ad: AutoDiffInput[T], /, axes: int | Sequence[int] | None = None) -> T:
