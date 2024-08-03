@@ -10,12 +10,14 @@ from skinnygrad import autograd
 class Tensor(autograd.AutoDiffable):
     # shaping
     reshape = autograd.reshape
+    repeat = autograd.repeat
     broadcast = autograd.broadcast
     flatten = autograd.flatten
     permute = autograd.permute
     transpose = autograd.transpose
     # movement
     __getitem__ = autograd.select
+    pool = autograd.pool
     pad = autograd.pad
     # arithmetic
     __add__ = __radd__ = autograd.add
@@ -30,3 +32,11 @@ class Tensor(autograd.AutoDiffable):
     relu = autograd.relu
     sigmoid = autograd.sigmoid
     softmax = autograd.softmax
+
+
+if __name__ == "__main__":
+    import numpy as np
+
+    a = Tensor([[[1, 2, 3, 4], [5, 6, 7, 8], [9, 10, 11, 12], [13, 14, 15, 16]]])
+    b = a.pool((2, 2), (2, 2))
+    np.array(b.realize())

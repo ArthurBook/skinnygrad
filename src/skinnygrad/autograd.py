@@ -11,12 +11,12 @@ import functools
 import inspect
 import itertools
 import typing
-from typing import Callable, Concatenate, Generic, Iterator, ParamSpec, Self, Sequence, TypeVar, Union
+from typing import Callable, Concatenate, Generic, Iterable, Iterator, ParamSpec, Self, Sequence, TypeVar, Union
 
 from skinnygrad import llops, shapes
 
 # fmt: off
-P, T = ParamSpec("P"),TypeVar("T", bound='AutoDiffable')
+P, T, U = ParamSpec("P"), TypeVar("T", bound='AutoDiffable'), TypeVar("U")
 AutoDiffInput = Union[T, llops.PyArrayRepr]
 LazyGrad = Callable[[llops.Symbol], llops.Symbol]
 UnaryGradDef = Callable[Concatenate[llops.Symbol, P], tuple[llops.Symbol, LazyGrad]]
@@ -53,8 +53,8 @@ class AutoDiffable(abc.ABC):
         assert self.shape.size == 1, f"backprop called on tensor with non-scalar {self.shape=}"
         assert self._backprops, f"backprop called on tensor with no grad graph"
         fill_grad = llops.Ops.READ(1)
-        if fill_grad.shape!= self.shape:
-            fill_grad=llops.Ops.BROADCAST(fill_grad, shape=self.shape)
+        if fill_grad.shape != self.shape:
+            fill_grad = llops.Ops.BROADCAST(fill_grad, shape=self.shape)
         self._backward(fill_grad)
 
     def _backward(self, delta: llops.Symbol) -> None:
@@ -139,7 +139,7 @@ def llop_gradient(grad_def: Callable[P, tuple[llops.Symbol, LazyGrad]]) -> Calla
 
 ### Unary gradient defs ###
 @llop_gradient
-def reshape(symbol: llops.Symbol, /, shape: Sequence[int]) -> tuple[llops.Symbol, LazyGrad]:
+def reshape(symbol: llops.Symbol, /, shape: Iterable[int]) -> tuple[llops.Symbol, LazyGrad]:
     if symbol.shape == (newshape := shapes.Shape(tuple(shape))):
         return symbol, lambda output_grad: output_grad  # no op needed
     forward = llops.Ops.RESHAPE(symbol, shape=newshape)
@@ -227,6 +227,45 @@ def broadcast(symbol: llops.Symbol, /, shape: Sequence[int]) -> tuple[llops.Symb
     return forward, backward
 
 
+def repeat(autodiffable: AutoDiffInput[T], repeats: tuple[int, ...]) -> T:
+    autodiffable = ensure_autodiffable(autodiffable)
+    base = (1,) * (len(repeats) - autodiffable.shape.ndims) + autodiffable.shape.dims
+    new_shape = tuple(itertools.chain.from_iterable([1, b] for b in base))
+    expand_shape = tuple(itertools.chain.from_iterable(zip(repeats, base)))
+    final_shape = tuple(r * s for r, s in zip(repeats, base))
+    return reshape(broadcast(reshape(autodiffable, new_shape), expand_shape), final_shape)
+
+
+def pool(
+    autodiffable: AutoDiffInput[T],
+    /,
+    kernel_shape: tuple[int, ...],
+    stride: int | tuple[int, ...] = 1,
+) -> T:
+    autodiffable = ensure_autodiffable(autodiffable)
+    stride = len(kernel_shape) * (stride,) if isinstance(stride, int) else stride
+    assert all(i > 0 for i in kernel_shape), f"{kernel_shape=} must be positive"
+    assert all(i > 0 for i in stride), f"{stride=} must be positive"
+    assert (n_kernel_dims := len(kernel_shape)) == len(stride), f"{kernel_shape=} mismatch {stride=}"
+    assert n_kernel_dims <= autodiffable.shape.ndims, f"{autodiffable.shape=} mismatch {kernel_shape=}"
+    orig_dims = autodiffable.shape.dims[-n_kernel_dims:]
+    noop_pad = (1,) * (n_noop_dims := autodiffable.shape.ndims - n_kernel_dims)
+    mvmnt = tuple(1 + (orig - kern) // strd for orig, kern, strd in zip(orig_dims, kernel_shape, stride))
+    pool = repeat(autodiffable, noop_pad + tuple(k + 1 for k, o in zip(kernel_shape, orig_dims)))
+    pool = select(pool, (..., *[(0, k * (o + 1)) for o, k in zip(orig_dims, kernel_shape)]))
+    pool = reshape(pool, noop_pad + _flatten((k, o + 1) for o, k in zip(orig_dims, kernel_shape)))
+    pool = select(pool, (..., *_flatten(((0, k), (0, m * s)) for k, m, s in zip(kernel_shape, mvmnt, stride))))
+    pool = reshape(pool, noop_pad + _flatten(zip(kernel_shape, mvmnt, stride)))
+    pool = select(pool, (..., *_flatten(((0, k), (0, m), (0, 1)) for k, m in zip(kernel_shape, mvmnt))))
+    pool = reshape(pool, noop_pad + _flatten(zip(kernel_shape, mvmnt)))
+    return permute(
+        pool,
+        *range(n_noop_dims),
+        *(n_noop_dims + 2 * i + 1 for i in range(len(orig_dims))),
+        *(n_noop_dims + 2 * i for i in range(len(orig_dims))),
+    )
+
+
 @llop_gradient
 def neg(symbol: llops.Symbol) -> tuple[llops.Symbol, LazyGrad]:
     forward = llops.Ops.NEG(symbol)
@@ -270,6 +309,14 @@ def sigmoid(symbol: llops.Symbol) -> tuple[llops.Symbol, LazyGrad]:
         return llops.Ops.MUL(output_grad, sigmoid_grad)
 
     return forward, backward
+
+
+def softmax(ad: AutoDiffInput[T], /, axes: int | Sequence[int] | None = None) -> T:
+    ad = ensure_autodiffable(ad)
+    axes = parse_axes(axes, ad.shape)
+    t_exp = exp(sub(ad, amax(ad, axes, keepdims=True)))
+    t_sum = sum(t_exp, axes, keepdims=True)
+    return div(t_exp, t_sum)
 
 
 ### Binary gradient defs ###
@@ -363,14 +410,6 @@ def where(s1: llops.Symbol, s2: llops.Symbol, s3: llops.Symbol) -> tuple[llops.S
     return llops.Ops.WHERE(s1, s2, s3), backward1, backward2, backward3
 
 
-def softmax(ad: AutoDiffInput[T], /, axes: int | Sequence[int] | None = None) -> T:
-    ad = ensure_autodiffable(ad)
-    axes = parse_axes(axes, ad.shape)
-    t_exp = exp(sub(ad, amax(ad, axes, keepdims=True)))
-    t_sum = sum(t_exp, axes, keepdims=True)
-    return div(t_exp, t_sum)
-
-
 ### helpers ###
 def get_common_broadcast_shape(*ads: AutoDiffable) -> shapes.Shape:
     if all(s == ads[0].shape for s in ads):
@@ -392,3 +431,15 @@ def parse_axes(axes: int | Sequence[int] | None, shape: shapes.Shape) -> tuple[i
 
 def ensure_autodiffable(ad: AutoDiffInput[T], /) -> T:
     return ad if isinstance(ad, AutoDiffable) else AutoDiffable(ad)  # type: ignore
+
+
+def _flatten(x_: Iterable[Iterable[U]]) -> tuple[U, ...]:
+    return tuple(itertools.chain.from_iterable(x_))
+
+
+if __name__ == "__main__":
+    import tinygrad
+
+    t = tinygrad.Tensor([[[1, 2, 3, 4], [5, 6, 7, 8], [9, 10, 11, 12], [13, 14, 15, 16]]])
+    a = t._pool((2, 2), (2, 2))
+    a.numpy()
