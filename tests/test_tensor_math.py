@@ -248,3 +248,40 @@ def test_softmax(data, axes, expected):
     tensor = tensors.Tensor(data)
     result = tensor.softmax(axes=axes)
     assert np.allclose(result.realize(), expected), f"Expected {expected}, but got {result.realize()}"
+
+
+@pytest.mark.parametrize(
+    "input_data, kernel_size, stride, expected",
+    [
+        # Basic pooling with a simple case
+        (
+            [[[1, 2, 3, 4], [5, 6, 7, 8], [9, 10, 11, 12], [13, 14, 15, 16]]],
+            (2, 2),
+            (2, 2),
+            np.array([[[[[1, 2], [5, 6]], [[3, 4], [7, 8]]], [[[9, 10], [13, 14]], [[11, 12], [15, 16]]]]]),
+        ),
+        # Pooling with different strides
+        (
+            [[[1, 2, 3, 4], [5, 6, 7, 8], [9, 10, 11, 12], [13, 14, 15, 16]]],
+            (2, 2),
+            (1, 1),
+            np.array(
+                [
+                    [
+                        [[[1, 2], [5, 6]], [[2, 3], [6, 7]], [[3, 4], [7, 8]]],
+                        [[[5, 6], [9, 10]], [[6, 7], [10, 11]], [[7, 8], [11, 12]]],
+                        [[[9, 10], [13, 14]], [[10, 11], [14, 15]], [[11, 12], [15, 16]]],
+                    ]
+                ]
+            ),
+        ),
+        # Edge Case: Single element in tensor
+        ([[[1]]], (1, 1), (1, 1), np.array([[[[[1]]]]])),
+    ],
+)
+def test_pool(input_data, kernel_size, stride, expected):
+    tensor = tensors.Tensor(input_data)
+    result = tensor.pool(kernel_size, stride)
+    assert np.array_equal(
+        np.array(result.realize()), expected
+    ), f"Expected {expected}, but got {np.array(result.realize())}"
