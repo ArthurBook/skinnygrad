@@ -9,8 +9,8 @@ packages = [{ include = "skinnygrad", from = "./src/" }]
 [tool.poetry.dependencies]
 python = "^3.11"
 numpy = "^2.0.0"
-skinnygrad-logger = {path = "extensions/logger", develop = true}
-skinnygrad-visualizer = {path = "extensions/visualizer", develop = true}
+skinnygrad-logger = {path = "extensions/logger", develop = true, optional=true}
+skinnygrad-visualizer = {path = "extensions/visualizer", develop = true, optional=true}
 
 [tool.poetry.extras]
 logger = ["skinnygrad-logger"]
