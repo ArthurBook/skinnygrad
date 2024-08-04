@@ -25,6 +25,9 @@ pylint = "^3.1.0"
 [tool.poetry.group.test.dependencies]
 pytest = "^8.2.1"
 
+[tool.poetry.group.data.dependencies]
+kaggle = "^1.6.17"
+
 [tool.black]
 line-length = 120
 
