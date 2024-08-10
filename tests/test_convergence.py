@@ -1,10 +1,10 @@
-from skinnygrad import optim, tensors
+from skinnygrad import optimizers, tensors
 
 
 def test_sgd_training_loop():
     a = tensors.Tensor.random_normal(1, 5, mean=5, var=2, requires_grad=False)
     b = tensors.Tensor.random_normal(5, 1, mean=5, var=2, requires_grad=True)
-    opt = optim.SGD((a, b), lr=0.001)
+    opt = optimizers.SGD((a, b), lr=0.001)
 
     initial_loss, loss_val = None, None
     for _ in range(1000):  # Run for 100 iterations
