@@ -11,7 +11,7 @@ def test_dotprod_backprop(engine: runtime.Engine) -> None:
         a = (params @ [2, 3, 4]).sum()
         a.backprop()
         assert params.gradient is not None
-        assert params.gradient.realize().to_python() == [[9, 9, 9]] * 3
+        assert params.gradient.realize() == [[9, 9, 9]] * 3
 
 
 def test_matrix_mul_backprop(engine: runtime.Engine) -> None:
@@ -21,7 +21,7 @@ def test_matrix_mul_backprop(engine: runtime.Engine) -> None:
         a = (params @ mat).sum()
         a.backprop()
         assert params.gradient is not None
-        assert params.gradient.realize().to_python() == [[2, 3], [2, 3]]
+        assert params.gradient.realize() == [[2, 3], [2, 3]]
 
 
 def test_non_square_matrix_mul_backprop(engine: runtime.Engine) -> None:
@@ -31,7 +31,7 @@ def test_non_square_matrix_mul_backprop(engine: runtime.Engine) -> None:
         a = (params @ mat).sum()
         a.backprop()
         assert (grad := params.gradient) is not None
-    assert np.allclose(grad.realize().to_python(), [[3, 7, 11]] * 2)
+    assert np.allclose(grad.realize(), [[3, 7, 11]] * 2)
 
 
 def test_mul_scalar_backprop(engine: runtime.Engine) -> None:
@@ -41,7 +41,7 @@ def test_mul_scalar_backprop(engine: runtime.Engine) -> None:
         a = (params * scalar).sum()
         a.backprop()
         assert params.gradient is not None
-        assert params.gradient.realize().to_python() == [[scalar, scalar], [scalar, scalar]]
+        assert params.gradient.realize() == [[scalar, scalar], [scalar, scalar]]
 
 
 def test_elementwise_multiplication_backprop(engine: runtime.Engine) -> None:
@@ -52,7 +52,7 @@ def test_elementwise_multiplication_backprop(engine: runtime.Engine) -> None:
         z.backprop()
         expected_gradient = [[5, 6], [7, 8]]
         assert x.gradient is not None
-        assert np.allclose(x.gradient.realize().to_python(), expected_gradient)
+        assert np.allclose(x.gradient.realize(), expected_gradient)
 
 
 def test_matrix_addition_backprop(engine: runtime.Engine) -> None:
@@ -64,8 +64,8 @@ def test_matrix_addition_backprop(engine: runtime.Engine) -> None:
         expected_gradient = [[1, 1], [1, 1]]
         assert A.gradient is not None
         assert B.gradient is not None
-        assert np.allclose(A.gradient.realize().to_python(), expected_gradient)
-        assert np.allclose(B.gradient.realize().to_python(), expected_gradient)
+        assert np.allclose(A.gradient.realize(), expected_gradient)
+        assert np.allclose(B.gradient.realize(), expected_gradient)
 
 
 def test_simple_slice_gradient_backprop(engine: runtime.Engine) -> None:
@@ -76,7 +76,7 @@ def test_simple_slice_gradient_backprop(engine: runtime.Engine) -> None:
         sliced_tensor_sum.backprop()
         expected_gradient = [[1.0, 1.0], [0.0, 0.0]]
         assert tensor.gradient is not None
-        assert np.allclose(tensor.gradient.realize().to_python(), expected_gradient)
+        assert np.allclose(tensor.gradient.realize(), expected_gradient)
 
 
 def test_column_slice_gradient_backprop(engine: runtime.Engine) -> None:
@@ -87,7 +87,7 @@ def test_column_slice_gradient_backprop(engine: runtime.Engine) -> None:
         sliced_tensor_sum.backprop()
         expected_gradient = [[0.0, 1.0], [0.0, 1.0]]
         assert tensor.gradient is not None
-        assert np.allclose(tensor.gradient.realize().to_python(), expected_gradient)
+        assert np.allclose(tensor.gradient.realize(), expected_gradient)
 
 
 def test_multidim_slice_gradient_backprop(engine: runtime.Engine) -> None:
@@ -98,7 +98,7 @@ def test_multidim_slice_gradient_backprop(engine: runtime.Engine) -> None:
         sliced_tensor_sum.backprop()
         expected_gradient = [[[1.0], [0.0]], [[0.0], [0.0]]]
         assert tensor.gradient is not None
-        assert np.allclose(tensor.gradient.realize().to_python(), expected_gradient)
+        assert np.allclose(tensor.gradient.realize(), expected_gradient)
 
 
 def test_complex_slice_gradient_backprop(engine: runtime.Engine) -> None:
@@ -110,7 +110,7 @@ def test_complex_slice_gradient_backprop(engine: runtime.Engine) -> None:
         expected_gradient = np.zeros((4, 3, 2))
         expected_gradient[1:3, :] = 1.0
         assert tensor.gradient is not None
-        assert np.allclose(tensor.gradient.realize().to_python(), expected_gradient)
+        assert np.allclose(tensor.gradient.realize(), expected_gradient)
 
 
 def test_single_element_slice_gradient_backprop(engine: runtime.Engine) -> None:
@@ -121,7 +121,7 @@ def test_single_element_slice_gradient_backprop(engine: runtime.Engine) -> None:
         sliced_tensor_sum.backprop()
         expected_gradient = [[0.0, 0.0], [0.0, 1.0]]
         assert tensor.gradient is not None
-        assert np.allclose(tensor.gradient.realize().to_python(), expected_gradient)
+        assert np.allclose(tensor.gradient.realize(), expected_gradient)
 
 
 @pytest.mark.parametrize(
@@ -145,7 +145,7 @@ def test_pad_gradient_backprop(engine: runtime.Engine, tensor_values, padding, e
         padded_tensor = tensor.pad(padding)
         padded_tensor.sum().backprop()
         assert tensor.gradient is not None
-        assert np.allclose(tensor.gradient.realize().to_python(), expected_gradient)
+        assert np.allclose(tensor.gradient.realize(), expected_gradient)
 
 
 @pytest.mark.parametrize(
@@ -164,7 +164,7 @@ def test_reciprocal_backward(arr: llops.PyArrayRepr, engine: runtime.Engine) -> 
         t.reciprocal().sum().backprop()
         reciprocal_grad = -1 / (np.array(arr) ** 2)
         assert t.gradient is not None
-        assert np.allclose(t.gradient.realize().to_python(), reciprocal_grad.tolist(), atol=1e-6)
+        assert np.allclose(t.gradient.realize(), reciprocal_grad.tolist(), atol=1e-6)
 
 
 @pytest.mark.parametrize(
@@ -184,7 +184,7 @@ def test_relu_backward(arr: llops.PyArrayRepr, engine: runtime.Engine) -> None:
 
         relu_grad = np.where(np.array(arr) >= 0, 1, 0)
         assert t.gradient is not None
-        assert np.allclose(t.gradient.realize().to_python(), relu_grad.tolist(), atol=1e-6)
+        assert np.allclose(t.gradient.realize(), relu_grad.tolist(), atol=1e-6)
 
 
 @pytest.mark.parametrize(
@@ -205,7 +205,7 @@ def test_sigmoid_backward(arr: llops.PyArrayRepr, grad: llops.PyArrayRepr, engin
         sigmoid_values = 1 / (1 + np.exp(-np.array(arr)))
         expected_grad = np.array(grad) * sigmoid_values * (1 - sigmoid_values)
         assert t.gradient is not None
-        assert np.allclose(t.gradient.realize().to_python(), expected_grad.tolist(), atol=1e-6)
+        assert np.allclose(t.gradient.realize(), expected_grad.tolist(), atol=1e-6)
 
 
 @pytest.mark.parametrize(
@@ -230,8 +230,8 @@ def test_max_backprop(data, axes, keepdims, expected_grad, engine: runtime.Engin
         tensor.max(axes=axes, keepdims=keepdims).sum().backprop()
         assert tensor.gradient is not None
         assert np.allclose(
-            tensor.gradient.realize().to_python(), expected_grad
-        ), f"Expected gradient {expected_grad}, but got {tensor.gradient.realize().to_python()}"
+            tensor.gradient.realize(), expected_grad
+        ), f"Expected gradient {expected_grad}, but got {tensor.gradient.realize()}"
 
 
 @pytest.mark.parametrize(
@@ -264,7 +264,7 @@ def test_softmax_backprop_vs_finite_diffs(data, axes: int | None, index: tuple, 
         finite_diff_grad = 0.5 * (softmax_d1 - softmax_d2) / DELTA
         assert tensor.gradient is not None
         assert np.allclose(
-            np.array(tensor.gradient.realize().to_python())[*index],
+            np.array(tensor.gradient.realize())[*index],
             finite_diff_grad.realize(),
             atol=1e-6,
         )

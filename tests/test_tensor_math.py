@@ -285,3 +285,42 @@ def test_pool(input_data, kernel_size, stride, expected):
     assert np.array_equal(
         np.array(result.realize()), expected
     ), f"Expected {expected}, but got {np.array(result.realize())}"
+
+
+@pytest.mark.parametrize(
+    "input_data, kernel_data, bias_data, stride, expected",
+    [
+        # Basic convolution with a simple case
+        (
+            np.array([[[[1, 2, 3, 4], [5, 6, 7, 8], [9, 10, 11, 12], [13, 14, 15, 16]]]]),  # (1, 1, 4, 4)
+            np.array([[[[-1, 0], [0, 1]]]]),  # (1, 1, 2, 2)
+            np.array([1]),  # (1,)
+            (1, 1),
+            np.array([[[[6, 6, 6], [6, 6, 6], [6, 6, 6]]]]),  # (1, 1, 3, 3)
+        ),
+        # Convolution with stride (2, 2)
+        (
+            np.array([[[[1, 2, 3, 4], [5, 6, 7, 8], [9, 10, 11, 12], [13, 14, 15, 16]]]]),  # (1, 1, 4, 4)
+            np.array([[[[-1, 0], [0, 1]]]]),  # (1, 1, 2, 2)
+            np.array([-1]),  # (1,)
+            (2, 2),
+            np.array([[[[4, 4], [4, 4]]]]),  # (1, 1, 2, 2)
+        ),
+        # Edge case: Single element in tensor
+        (
+            np.array([[[[1]]]]),  # (1, 1, 1, 1)
+            np.array([[[[2]]]]),  # (1, 1, 1, 1)
+            np.array([0]),  # (1,)
+            (1, 1),
+            np.array([[[[2]]]]),  # (1, 1, 1, 1)
+        ),
+    ],
+)
+def test_conv(input_data, kernel_data, bias_data, stride, expected):
+    tensor = tensors.Tensor(input_data.tolist())
+    kernel = tensors.Tensor(kernel_data.tolist())
+    bias = tensors.Tensor(bias_data.tolist())
+    result = tensor.conv(kernel, bias=bias, stride=stride)
+    assert np.array_equal(
+        np.array(result.realize()), expected
+    ), f"Expected {expected}, but got {np.array(result.realize())}"

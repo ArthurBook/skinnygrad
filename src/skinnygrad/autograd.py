@@ -33,7 +33,7 @@ class AutoDiffable(abc.ABC):
     def __init__(self, data: llops.PyArrayRepr | llops.Symbol, requires_grad: bool = False) -> None:
         self.symbol = data if isinstance(data, llops.Symbol) else llops.Ops.READ(data)
         self.requires_grad = requires_grad
-        self.gradient: llops.Symbol | None = None
+        self.gradient: AutoDiffable | None = None
         self._backprops: tuple[Backprop, ...] = ()
 
     def __repr__(self) -> str:
@@ -59,7 +59,7 @@ class AutoDiffable(abc.ABC):
 
     def _backward(self, delta: llops.Symbol) -> None:
         assert self.requires_grad, f"_backward called on tensor with {self.requires_grad=}"
-        self.gradient = delta if self.gradient is None else llops.Ops.ADD(self.gradient, delta)
+        self.gradient = AutoDiffable(delta if self.gradient is None else llops.Ops.ADD(self.gradient.symbol, delta))
         for backprop in self._backprops:
             backprop(delta)
 
@@ -254,7 +254,7 @@ def pool(
     assert all(i > 0 for i in stride), f"{stride=} must be positive"
     assert (n_kernel_dims := len(kernel_shape)) == len(stride), f"{kernel_shape=} mismatch {stride=}"
     assert n_kernel_dims <= autodiffable.shape.ndims, f"{autodiffable.shape=} mismatch {kernel_shape=}"
-    orig_noop_shape, orig_dims = autodiffable.shape.dims[:n_kernel_dims], autodiffable.shape.dims[-n_kernel_dims:]
+    orig_noop_shape, orig_dims = autodiffable.shape.dims[:-n_kernel_dims], autodiffable.shape.dims[-n_kernel_dims:]
     noop_pad = (1,) * (n_noop_dims := autodiffable.shape.ndims - n_kernel_dims)
     mvmnt = tuple(1 + (orig - kern) // strd for orig, kern, strd in zip(orig_dims, kernel_shape, stride))
     pool = repeat(autodiffable, noop_pad + tuple(k + 1 for k, o in zip(kernel_shape, orig_dims)))
@@ -276,7 +276,6 @@ def conv(
     autodiffable: AutoDiffInput[T],  # (batch_size, in_channels, *input_shape)
     kernel: AutoDiffInput[T],  # (out_channels, in_channels, *kernel_shape)
     bias: AutoDiffInput[T] | None = None,  # (out_channels, )
-    /,
     stride: int | tuple[int, ...] = 1,
     padding: int | tuple[int, ...] = 0,
     pad_val: float = 0,
@@ -287,13 +286,14 @@ def conv(
     out_channels, kern_in_channels, *conv_shape = kernel.shape.dims
     assert len(input_shape) == len(conv_shape), f"Mismatch in shapes along conv {input_shape=}, {conv_shape=}"
     assert input_in_channels == kern_in_channels, f"Mismatch input channels {input_in_channels=} {kern_in_channels=}"
-    padding = (0,) * len(input_shape) + len(conv_shape) * (padding,) if isinstance(padding, int) else padding
-    pools = pool(pad(autodiffable, pads=padding, pad_val=pad_val), kernel_shape=conv_shape, stride=stride)
+    if any(padding := ((padding,) if isinstance(padding, int) else padding)):
+        autodiffable = pad(autodiffable, (0,) * (autodiffable.shape.ndims - len(padding)) + padding, pad_val)
+    pools = pool(autodiffable, kernel_shape=conv_shape, stride=stride)
     bc_pools = reshape(pools, (batch_size, 1, *pools.shape.dims[1:]))
     bc_kernel = reshape(kernel, (1, out_channels, kern_in_channels, *(1,) * len(conv_shape), *conv_shape))
     out = sum(mul(bc_pools, bc_kernel), axes=(2,) + tuple(range(-len(conv_shape), 0)))
     assert out.shape.dims == (batch_size, out_channels, *pools.shape.dims[2 : 2 + len(conv_shape)]), "Shape error"
-    return out
+    return out if bias is None else add(out, reshape(bias, (1, out_channels, *(1 for _ in conv_shape))))
 
 
 @llop_gradient
