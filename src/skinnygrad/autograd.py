@@ -10,6 +10,7 @@ import dataclasses
 import functools
 import inspect
 import itertools
+import math
 import typing
 from typing import Callable, Concatenate, Generic, Iterable, Iterator, ParamSpec, Self, Sequence, TypeVar, Union
 
@@ -311,6 +312,13 @@ def exp(symbol: llops.Symbol) -> tuple[llops.Symbol, LazyGrad]:
 
 
 @llop_gradient
+def log(symbol: llops.Symbol) -> tuple[llops.Symbol, LazyGrad]:
+    forward = llops.Ops.LOG(symbol)
+    backward = lambda output_grad: llops.Ops.MUL(output_grad, llops.Ops.INV(symbol))
+    return forward, backward
+
+
+@llop_gradient
 def reciprocal(symbol: llops.Symbol) -> tuple[llops.Symbol, LazyGrad]:
     forward = llops.Ops.INV(symbol)
 
@@ -439,11 +447,50 @@ def amax(
     return forward, backward
 
 
+def mean(ad: AutoDiffInput[T], /, axes: int | Sequence[int] | None = None) -> T:
+    """
+    Compute the mean of ad over the given axes.
+    Same broadcasting logic as [numpy.mean](https://numpy.org/doc/stable/reference/generated/numpy.mean.html)
+    """
+    t = ensure_autodiffable(ad)
+    axes = parse_axes(axes, t.shape)
+    return div(sum(t, axes=axes), math.prod(t.shape.dims[ax] for ax in axes))
+
+
+def binary_cross_entropy(
+    target: AutoDiffInput[T], pred: AutoDiffInput[T], /, axes: int | tuple[int, ...] = -1, epsilon: float = 1e-7
+) -> T:
+    pred = clip(pred, epsilon, 1 - epsilon)
+    return mean(neg(add(mul(target, log(pred)), mul(sub(1, target), log(sub(1, pred))))), axes=axes)
+
+
+def clip(x: AutoDiffInput[T], min_value: float, max_value: float) -> AutoDiffInput[T]:
+    return maximum(minimum(x, max_value), min_value)
+
+
+def minimum(ad1: AutoDiffInput[T], ad2: AutoDiffInput[T], /) -> T:
+    t1, t2 = ensure_autodiffable(ad1), ensure_autodiffable(ad2)
+    return where(less_than(t1, t2), t1, t2)
+
+
+def maximum(ad1: AutoDiffInput[T], ad2: AutoDiffInput[T], /) -> T:
+    t1, t2 = ensure_autodiffable(ad1), ensure_autodiffable(ad2)
+    return where(less_than(t2, t1), t1, t2)
+
+
+@llop_gradient
+def less_than(s1: llops.Symbol, s2: llops.Symbol) -> tuple[llops.Symbol, LazyGrad, LazyGrad]:
+    def backward(_: llops.Symbol) -> llops.Symbol:
+        return _
+
+    return llops.Ops.LESS(s1, s2), backward, backward
+
+
 ### Ternary gradient defs ###
 @llop_gradient
 def where(s1: llops.Symbol, s2: llops.Symbol, s3: llops.Symbol) -> tuple[llops.Symbol, LazyGrad, LazyGrad, LazyGrad]:
     def backward1(_: llops.Symbol) -> llops.Symbol:
-        raise NotImplementedError("No gradient defined for where condition")
+        return _
 
     def backward2(output_grad: llops.Symbol) -> llops.Symbol:
         return llops.Ops.WHERE(s1, output_grad, llops.Ops.BROADCAST(llops.Ops.READ(0), shape=output_grad.shape))
