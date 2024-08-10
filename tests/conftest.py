@@ -1,7 +1,9 @@
 from __future__ import annotations
 
+import random
 from typing import TYPE_CHECKING
 
+import numpy as np
 import pytest
 
 from skinnygrad import runtime
@@ -22,3 +24,9 @@ def engine(request: pytest.FixtureRequest) -> object:
     if request.param == runtime.NumPyEngine:
         return runtime.NumPyEngine()
     raise ValueError("invalid internal test config")
+
+
+@pytest.fixture(autouse=True)
+def set_random_seeds(seed: float = 42):
+    np.random.seed(seed)
+    random.seed(seed)
