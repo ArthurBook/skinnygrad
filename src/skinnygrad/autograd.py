@@ -373,6 +373,20 @@ def div(ad1: AutoDiffInput[T], ad2: AutoDiffInput[T], /) -> T:
     return mul(ad1, reciprocal(ad2))
 
 
+@llop_gradient
+def pow(symbol1: llops.Symbol, symbol2: llops.Symbol) -> tuple[llops.Symbol, LazyGrad, LazyGrad]:
+    forward = llops.Ops.POW(symbol1, symbol2)
+
+    def backward1(output_grad: llops.Symbol) -> llops.Symbol:
+        new_exponent = llops.Ops.ADD(symbol2, llops.Ops.BROADCAST(llops.Ops.READ(-1), shape=symbol2.shape))
+        return llops.Ops.MUL(output_grad, llops.Ops.MUL(symbol2, llops.Ops.POW(symbol1, new_exponent)))
+
+    def backward2(output_grad: llops.Symbol) -> llops.Symbol:
+        return llops.Ops.MUL(output_grad, llops.Ops.MUL(forward, llops.Ops.LOG(symbol1)))
+
+    return forward, backward1, backward2
+
+
 def matmul(ad1: AutoDiffInput[T], ad2: AutoDiffInput[T], /) -> T:
     """
     Matrix product of ad1 and ad2.

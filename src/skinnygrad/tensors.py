@@ -26,6 +26,7 @@ class Tensor(autograd.AutoDiffable):
     __sub__ = __rsub__ = autograd.sub
     __mul__ = __rmul__ = autograd.mul
     __truediv__ = __rtruediv__ = autograd.div
+    __pow__ = autograd.pow
     __matmul__ = __rmatmul__ = autograd.matmul
     reciprocal = autograd.reciprocal
     sum = autograd.sum
@@ -38,9 +39,10 @@ class Tensor(autograd.AutoDiffable):
 
     # constructors
     @classmethod
-    def random_uniform(cls, *shape: int, lb: float = 0, ub: float = 1) -> Self:
-        return cls(np.random.uniform(lb, ub, shape).tolist())
+    def random_uniform(cls, *shape: int, lb: float = 0, ub: float = 1, requires_grad: bool = False) -> Self:
+        return cls(np.random.uniform(lb, ub, shape).tolist(), requires_grad=requires_grad)
 
     @classmethod
-    def random_normal(cls, *shape: int, mean: float = 0, var: float = 1) -> Self:
-        return cls(np.random.normal(mean, var, shape).tolist())  # TODO create from random uniform
+    def random_normal(cls, *shape: int, mean: float = 0, var: float = 1, requires_grad: bool = False) -> Self:
+        # TODO create from box muller transform
+        return cls(np.random.normal(mean, var, shape).tolist(), requires_grad=requires_grad)
