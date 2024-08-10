@@ -3,8 +3,10 @@ Tensors with torch-like interface
 """
 
 from __future__ import annotations
+from typing import Self
 
 from skinnygrad import autograd
+import numpy as np
 
 
 class Tensor(autograd.AutoDiffable):
@@ -34,51 +36,11 @@ class Tensor(autograd.AutoDiffable):
     sigmoid = autograd.sigmoid
     softmax = autograd.softmax
 
+    # constructors
+    @classmethod
+    def random_uniform(cls, *shape: int, lb: float = 0, ub: float = 1) -> Self:
+        return cls(np.random.uniform(lb, ub, shape).tolist())
 
-if __name__ == "__main__":
-    import numpy as np
-
-    a = Tensor(
-        [
-            [
-                [
-                    [1, 2, 3, 4],
-                    [5, 6, 7, 8],
-                    [9, 10, 11, 12],
-                    [13, 14, 15, 16],
-                ],
-            ],
-            [
-                [
-                    [1, 2, 3, 4],
-                    [5, 6, 7, 8],
-                    [9, 10, 11, 12],
-                    [13, 14, 15, 16],
-                ],
-            ],
-        ]
-    )
-    b = a.conv(
-        [
-            [
-                [
-                    (1, 2),
-                    (3, 4),
-                ],
-            ],
-            [
-                [
-                    (5, 6),
-                    (7, 8),
-                ],
-            ],
-            [
-                [
-                    (9, 10),
-                    (11, 12),
-                ],
-            ],
-        ],
-        padding=1,
-    )
-    np.array(b.realize())
+    @classmethod
+    def random_normal(cls, *shape: int, mean: float = 0, var: float = 1) -> Self:
+        return cls(np.random.normal(mean, var, shape).tolist())  # TODO create from random uniform
