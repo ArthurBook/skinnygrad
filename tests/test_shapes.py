@@ -2,7 +2,7 @@ from typing import Sequence
 
 import pytest
 
-from skinnygrad import llops, shapes
+from skinnygrad import shapes
 
 
 def test_shape_eq():

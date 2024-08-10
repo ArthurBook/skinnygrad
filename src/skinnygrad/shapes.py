@@ -20,11 +20,6 @@ Loc = None | int | types.EllipsisType | tuple[None | int, None | int]
 class Shape:
     dims: tuple[int, ...]
 
-    def slice(self, *locs: Loc, _skip_norm: bool = False) -> Shape:
-        locs = locs if _skip_norm else self.normalize_loc(locs)
-        slice_dims = (loc for loc in locs if isinstance(loc, tuple))
-        return Shape(tuple(end - start for start, end in slice_dims))  # type: ignore
-
     def __eq__(self, other: object) -> bool:
         return isinstance(other, Shape) and self.dims == other.dims
 
@@ -42,6 +37,11 @@ class Shape:
 
     def __iter__(self) -> Iterator[int]:
         return iter(self.dims)
+
+    def slice(self, *locs: Loc, _skip_norm: bool = False) -> Shape:
+        locs = locs if _skip_norm else self.normalize_loc(locs)
+        slice_dims = (loc for loc in locs if isinstance(loc, tuple))
+        return Shape(tuple(end - start for start, end in slice_dims))  # type: ignore
 
     def broadcast(self, other: Shape) -> Shape:
         if self == other:

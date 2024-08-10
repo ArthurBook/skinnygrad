@@ -1,6 +1,11 @@
 {
+    "ratio": 1.5,
+    "overlap": "false",
+    "splines": "true",
+    "ranksep": 0.1,
+    "nodesep": 0.1,
+    "weight": 0.1,
     "directed": true,
     "bgcolor": "none",
-    "rankdir": "BT",
-    "ratio": "1"
+    "rankdir": "TB"
 }

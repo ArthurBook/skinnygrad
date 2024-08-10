@@ -133,6 +133,11 @@ def construct_binary(s1: Symbol, s2: Symbol, /) -> OpSignature:
     return s1.shape, bind(construct_binary, s1, s2)
 
 
+def construct_ternary(s1: Symbol, s2: Symbol, s3: Symbol, /) -> OpSignature:
+    assert_shape_match(s1, s2, s3)
+    return s1.shape, bind(construct_ternary, s1, s2, s3)
+
+
 def construct_reduce(s: Symbol, /, axes: tuple[int, ...]) -> OpSignature:
     assert isinstance(s, Symbol), f"{s=} must be symbol"
     ndims, normed_axes = s.shape.ndims, sorted(s.shape.normalize_dim_ref(*axes), reverse=True)
@@ -155,15 +160,22 @@ def assert_shape_match(*symbols: Symbol) -> None:
 class Ops(enum.Enum):
     """Low level ops that define & execute the computational graph"""
 
-    LOAD = Op(construct_load)
+    READ = Op(construct_load)
     ASSIGN = Op(construct_assign)
     RESHAPE = Op(construct_reshape)
     BROADCAST = Op(construct_broadcast)
     PERMUTE = Op(construct_permute)
     SELECT = Op(construct_slice)
     PAD = Op(construct_pad)
+    INV = Op(construct_unary)
     NEG = Op(construct_unary)
+    EXP = Op(construct_unary)
+    LOG = Op(construct_unary)
+    EQ = Op(construct_binary)
+    LESS = Op(construct_binary)
     ADD = Op(construct_binary)
     MUL = Op(construct_binary)
+    POW = Op(construct_binary)
     SUM = Op(construct_reduce)
-    MAX = Op(construct_reduce)
+    AMAX = Op(construct_reduce)
+    WHERE = Op(construct_ternary)
