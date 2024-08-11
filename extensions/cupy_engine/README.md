@@ -1,0 +1,1 @@
+# [CuPy](https://github.com/cupy/cupy) GPU acceleration for [skinnygrad](../../) package.
