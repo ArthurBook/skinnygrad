@@ -5,13 +5,19 @@ from skinnygrad import callbacks, llops
 
 LOG_LEVEL_ENV_SETTER = "SKINNYGRAD_LOGLEVEL"
 
-logging.basicConfig(
-    level=logging._nameToLevel[os.environ.get(LOG_LEVEL_ENV_SETTER, "INFO")],
-    format="%(asctime)s %(levelname)-10s%(funcName)s: - %(message)s",
-    datefmt="%Y-%m-%d %H:%M:%S",
-)
 
-default_logger = logging.getLogger(__name__)
+def setup_logger() -> logging.Logger:
+    logger = logging.getLogger(__name__)
+    logger.setLevel(logging._nameToLevel[os.environ.get(LOG_LEVEL_ENV_SETTER, "INFO")])
+    console_handler = logging.StreamHandler()
+    console_handler.setFormatter(
+        logging.Formatter("%(asctime)s %(levelname)-10s%(funcName)s: - %(message)s", datefmt="%Y-%m-%d %H:%M:%S")
+    )
+    logger.addHandler(console_handler)
+    return logger
+
+
+default_logger = setup_logger()
 
 
 class SkinnyGradLogger(callbacks.OnSymbolInitCallBack):
@@ -30,3 +36,6 @@ class SkinnyGradLogger(callbacks.OnSymbolInitCallBack):
                     "out shape": repr(symbol.shape),
                 },
             )
+
+    def __str__(self) -> str:
+        return f"{self.__class__.__name__}(verbosity={self._logger.level})"
