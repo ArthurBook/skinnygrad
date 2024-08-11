@@ -13,6 +13,7 @@ import itertools
 import math
 import typing
 from typing import Callable, Concatenate, Generic, Iterable, Iterator, ParamSpec, Self, Sequence, TypeVar, Union
+import sys
 
 from skinnygrad import llops, shapes
 
@@ -28,6 +29,7 @@ BinaryAutoDiffFunc = Callable[Concatenate[AutoDiffInput[T], AutoDiffInput[T], P]
 TernaryAutoDiffFunc = Callable[Concatenate[AutoDiffInput[T], AutoDiffInput[T], AutoDiffInput[T], P], T]
 # fmt: on
 
+sys.setrecursionlimit(2000)  # Set the recursion limit to 2000
 
 ### Base for autodiff ###
 class AutoDiffable(abc.ABC):
@@ -347,6 +349,11 @@ def sigmoid(symbol: llops.Symbol) -> tuple[llops.Symbol, LazyGrad]:
         return llops.Ops.MUL(output_grad, sigmoid_grad)
 
     return forward, backward
+
+
+def tanh(ad: AutoDiffInput[T], /) -> T:
+    ad = ensure_autodiffable(ad)
+    return sub(mul(sigmoid(mul(ad, 2)), 2), 1)
 
 
 def softmax(ad: AutoDiffInput[T], /, axes: int | Sequence[int] | None = None) -> T:
