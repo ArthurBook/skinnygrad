@@ -1,0 +1,16 @@
+[tool.poetry]
+name = "skinnygrad-cupyengine"
+version = "0.1.0"
+description = "gpu acceleration for skinnygrad"
+authors = ["Arthur <atte.book@gmail.com>"]
+readme = "README.md"
+packages = [{include = "cupy_engine", from = "./src/"}]
+
+[tool.poetry.dependencies]
+python = "^3.11"
+skinnygrad = "*"
+cupy-cuda11x = "^13.2.0"
+
+[build-system]
+requires = ["poetry-core"]
+build-backend = "poetry.core.masonry.api"
