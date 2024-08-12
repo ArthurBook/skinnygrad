@@ -31,6 +31,7 @@ TernaryAutoDiffFunc = Callable[Concatenate[AutoDiffInput[T], AutoDiffInput[T], A
 
 sys.setrecursionlimit(2000)  # Set the recursion limit to 2000
 
+
 ### Base for autodiff ###
 class AutoDiffable(abc.ABC):
     def __init__(self, data: llops.PyArrayRepr | llops.Symbol, requires_grad: bool = False) -> None:
@@ -441,12 +442,13 @@ def amax(
         forward = llops.Ops.RESHAPE(forward, shape=forward.shape.insertaxes(*axes))
 
     def backward(output_grad: llops.Symbol) -> llops.Symbol:
-        nonlocal forward
         if not keepdims and len(axes) < len(symbol.shape):  # NOTE: add back dropped dims before expand
-            forward = llops.Ops.RESHAPE(forward, shape=forward.shape.insertaxes(*axes))
             output_grad = llops.Ops.RESHAPE(output_grad, shape=output_grad.shape.insertaxes(*axes))
+            forward_ = llops.Ops.RESHAPE(forward, shape=forward.shape.insertaxes(*axes))
+        else:
+            forward_ = forward
         return llops.Ops.WHERE(
-            llops.Ops.EQ(symbol, llops.Ops.BROADCAST(forward, shape=symbol.shape)),
+            llops.Ops.EQ(symbol, llops.Ops.BROADCAST(forward_, shape=symbol.shape)),
             llops.Ops.BROADCAST(output_grad, shape=symbol.shape),
             llops.Ops.BROADCAST(llops.Ops.READ(0), shape=symbol.shape),
         )

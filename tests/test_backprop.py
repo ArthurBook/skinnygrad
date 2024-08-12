@@ -1,4 +1,3 @@
-from typing import cast
 import numpy as np
 import pytest
 

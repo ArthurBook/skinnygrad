@@ -56,7 +56,7 @@ class LeNet:
         self.s2 = layers.PoolingLayer(
             kernel_shape=(2, 2),
             stride=2,
-            method="mean",
+            method="max",
         )
         self.c3 = layers.ConvLayer(
             in_channels=self.c1.output_channels,
@@ -69,7 +69,7 @@ class LeNet:
         self.s4 = layers.PoolingLayer(
             kernel_shape=(2, 2),
             stride=2,
-            method="mean",
+            method="max",
         )
         self.c5 = layers.ConvLayer(
             in_channels=self.c3.output_channels,
