@@ -19,6 +19,7 @@ import functools
 import itertools
 import logging
 import pathlib
+import random
 from typing import Iterator
 
 import numpy as np
@@ -33,13 +34,14 @@ MNIST_RESOLUTION = (28, 28)
 MNIST_INTENSITY_RANGE = 0, 255
 MNIST_ENCODING = "utf-8"
 
+np.random.seed(42)
+random.seed(42)
 logging.basicConfig(
     level=logging.INFO,
     filename="logs/lenet-mnist-train.log",
     format="%(asctime)s | %(message)s",
 )
 logger = logging.getLogger(__name__)
-np.random.seed(42)
 
 
 ### Model ###
@@ -128,6 +130,9 @@ def load_mnist_images(path: pathlib.Path) -> Mnist:
                     ]
                 ]
             )
+
+        random.shuffle(data := list(zip(labels, pixels)))
+        labels, pixels = zip(*data)
         return Mnist(skinnygrad.Tensor(labels), skinnygrad.Tensor(pixels))
 
 
@@ -148,8 +153,8 @@ class DataLoader:
     def __next__(self) -> tuple[skinnygrad.Tensor, skinnygrad.Tensor]:
         self.step += 1
         self.epoch = self.step / (self.dataset_size / self.batch_size)
-        start = (self.step * self.batch_size) // self.dataset_size
-        end = min(self.batch_size, start + self.batch_size)
+        start = (self.step * self.batch_size) % self.dataset_size
+        end = min(self.dataset_size, start + self.batch_size)
         loc = ((start, end),)
         return self.mnist.pixels[loc], self.mnist.labels[loc]
 
@@ -162,7 +167,7 @@ def main():
     parser.add_argument("--learning_rate", type=float, default=0.01, help="Learning rate for training.")
     parser.add_argument("--train_batch_size", type=int, default=32, help="Batch size for training.")
     parser.add_argument("--eval_batch_size", type=int, default=256, help="Batch size for evaluation.")
-    parser.add_argument("--eval_every_n_steps", type=int, default=12, help="Evaluate every n steps.")
+    parser.add_argument("--eval_every_n_steps", type=int, default=50, help="Evaluate every n steps.")
     args = parser.parse_args()
     train(
         train_path=args.train_path,
