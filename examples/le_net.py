@@ -19,13 +19,13 @@ import functools
 import itertools
 import logging
 import pathlib
-from typing import Iterator
+from typing import Callable, Iterator
 
 import numpy as np
 
 import skinnygrad
 import skinnygrad.optimizers
-from skinnygrad import autograd, layers, tensors
+from skinnygrad import autograd, config, layers
 
 DATADIR = pathlib.Path("data/mnist")
 MNIST_IN_CHANNELS = 1
@@ -92,10 +92,11 @@ class LeNet:
             activation=functools.partial(autograd.softmax, axes=1),
         )
 
-    def __call__(self, image_batch: skinnygrad.Tensor) -> skinnygrad.Tensor:
+    def __call__(self, image_batch: skinnygrad.Tensor, callback: Callable = lambda *args: None) -> skinnygrad.Tensor:
         out = image_batch
         for op in self.ops():
             out = op(out)
+            callback(op, out)
         return out
 
     def params(self) -> Iterator[skinnygrad.Tensor]:
@@ -164,6 +165,7 @@ def main():
     parser.add_argument("--eval_batch_size", type=int, default=256, help="Batch size for evaluation.")
     parser.add_argument("--eval_every_n_steps", type=int, default=12, help="Evaluate every n steps.")
     args = parser.parse_args()
+    visualize_forward_pass(args.train_path, args.train_batch_size)
     train(
         train_path=args.train_path,
         test_path=args.test_path,
@@ -191,19 +193,20 @@ def train(
     run_eval_flag = itertools.cycle(itertools.chain([True], [False] * (eval_every_n_steps - 1)))
     eval_loss: float = 1e9
     while train_data.epoch <= epochs:
+        epoch, step = train_data.epoch, train_data.step
         train_loss = train_step(train_data, optimizer, lenet)
         eval_loss = eval_model(test_data, lenet) if next(run_eval_flag) else eval_loss
-        epoch, step, train_loss_val = train_data.epoch, train_data.step, train_loss.realize()
-        log_step(epoch, step, train_loss_val, eval_loss)  # type: ignore
+        log_step(epoch, step, train_loss, eval_loss)
 
 
-def train_step(dataloader: DataLoader, optimizer: skinnygrad.optimizers.Optimizer, lenet: LeNet) -> tensors.Tensor:
+def train_step(dataloader: DataLoader, optimizer: skinnygrad.optimizers.Optimizer, lenet: LeNet) -> float:
     batch_pixels, batch_labels = next(dataloader)
     with optimizer:
         batch_pred = lenet(batch_pixels)
         loss = autograd.binary_cross_entropy(batch_labels, batch_pred).mean()
         loss.backprop()
-    return loss
+    assert isinstance(train_loss_val := loss.realize(), float)
+    return train_loss_val
 
 
 def eval_model(dataloader: DataLoader, lenet: LeNet) -> float:
@@ -211,7 +214,7 @@ def eval_model(dataloader: DataLoader, lenet: LeNet) -> float:
     for batch, batch_labels in dataloader:
         corrects = np.argmax(batch_labels.realize(), axis=1) == np.argmax(lenet(batch).realize(), axis=1)
         batch_losses.append(np.sum(corrects))
-    return sum(batch_losses) / dataloader.dataset_size
+    return float(sum(batch_losses) / dataloader.dataset_size)
 
 
 def log_step(epoch: float, step: int, train_bce: float, eval_acc: float) -> None:
@@ -219,12 +222,37 @@ def log_step(epoch: float, step: int, train_bce: float, eval_acc: float) -> None
         " | ".join(
             (
                 f"epoch: {epoch:5.4f}",
-                f"step: {step:<9}",
+                f"stepa: {step:<9}",
                 f"train_bce_loss: {train_bce:.9f}",
                 f"eval_accuracy: {eval_acc:.9f}",
             )
         )
     )
+
+
+def visualize_forward_pass(
+    train_path: pathlib.Path,
+    batch_size: int = 32,
+) -> None:
+    try:
+        import visualization
+    except ImportError:
+        return
+    visualizer = visualization.GraphVisualizer("static/lenet-forward.png")
+    with config.Configuration(visualizer):
+        with visualizer._graph as main_g:
+            main_g.graph_attr.update(rankdir="TB", splines="ortho", ranksep="0.5", ratio="fill")
+            with main_g.subgraph(
+                name="cluster_Forward",
+                label="LeNet-5 forward pass",
+                fontcolor="white",
+                fontsize="60.0",
+                labeljust="l",
+                shape="box",
+            ) as g:
+                batch, labels = next(DataLoader(load_mnist_images(train_path), batch_size=batch_size))
+                lenet = LeNet()
+                preds = lenet(batch)
 
 
 if __name__ == "__main__":
