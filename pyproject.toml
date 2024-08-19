@@ -1,6 +1,6 @@
 [tool.poetry]
 name = "skinnygrad"
-version = "0.1.0"
+version = "0.1.1"
 description = "autodiff engine inspired by tinygrad"
 authors = ["Arthur <atte.book@gmail.com>"]
 readme = "README.md"
