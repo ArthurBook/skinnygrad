@@ -1,8 +1,7 @@
 # SkinnyGrad
 ![pypi](https://img.shields.io/pypi/v/configmate.svg) 
 
-**SkinnyGrad** is a side project implementing a tensor autodifferentiation library with a torch-like interface from scratch in Python.
-By default, a computational graph is built and evaluated lazily with [NumPy](https://github.com/numpy/numpy), and GPU acceleration can be switched on with the [CuPy backend extension](./extensions/cupy_engine/).
+**SkinnyGrad** is a tensor autodifferentiation library that I wrote as a side project for fun and learning. By default, a computational graph is built and evaluated lazily with [NumPy](https://github.com/numpy/numpy). GPU acceleration is also available with the [CuPy backend extension](./extensions/cupy_engine/). At ~1300 lines, skinnygrad is written with simplicity and extensibility in mind. It nevertheless covers a [good subset](./src/skinnygrad/tensors.py) of the features of a `torch.Tensor`. Kudos to [tinygrad](https://github.com/tinygrad/tinygrad), which inspired the RISC-like design of mapping all high level ops to [19 low level ops](./src/skinnygrad/llops.py) that the runtime engine optimizes and executes.
 
 # Try it out!
 ```bash
@@ -25,9 +24,8 @@ print(y.realize())
 # [[42]]
 ```
 
-# LeNet-5 demo
-To test the engine, I've replicated the [LeNet-5 paper](http://vision.stanford.edu/cs598_spring07/papers/Lecun98.pdf) and trained it for 5 epochs, achieving same the 98% accuracy on the MNIST eval set [here](./examples/le_net.py). The forward pass built up by the skinnygrad engine is shown below:
-![lenet-fwd](./static/lenet-forward.png)
+# LeNet-5 as a convergence test
+As an end-to-end test for the engine, I replicated the [LeNet-5 paper](http://vision.stanford.edu/cs598_spring07/papers/Lecun98.pdf) and trained it for 5 epochs on MNIST, recovering the 98% eval accuracy. With a batch size of 64 it takes a few minutes per training epoch (60k images) using the CuPy GPU acceleration backend on a Nvidia A100 GPU. The code can be found in the [examples folder](./examples/le_net.py).
 
-# Acknowledgements
-The design choices are inspired by [tinygrad](https://github.com/tinygrad/tinygrad).
+## BONUS: LeNet-5 forward pass built up by the skinnygrad engine
+![lenet-fwd](./static/lenet-forward.png)
