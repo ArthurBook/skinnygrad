@@ -1,6 +1,6 @@
 [tool.poetry]
 name = "skinnygrad"
-version = "0.0.0a2"
+version = "0.1.0"
 description = "autodiff engine inspired by tinygrad"
 authors = ["Arthur <atte.book@gmail.com>"]
 readme = "README.md"
@@ -29,6 +29,9 @@ pytest = "^8.2.1"
 
 [tool.poetry.group.data.dependencies]
 kaggle = "^1.6.17"
+
+[tool.poetry.group.plot.dependencies]
+matplotlib = "^3.9.2"
 
 [tool.black]
 line-length = 120
