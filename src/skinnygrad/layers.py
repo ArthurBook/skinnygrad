@@ -13,6 +13,21 @@ class HasParameters(Protocol):
     def params(self) -> Iterable[tensors.Tensor]: ...
 
 
+def set_str_repr(*vals: str) -> Callable[[type], type]:
+    def decorator(cls: type) -> type:
+        placeholders = ", ".join(f"{val}={{{val}}}" for val in vals)
+        fstring = f"{cls.__name__}({placeholders})"
+
+        def __str__(_=None) -> str:
+            return fstring.format_map(vars(_))
+
+        cls.__repr__ = cls.__str__ = __str__
+        return cls
+
+    return decorator
+
+
+@set_str_repr("input_size", "output_size")
 class FFLayer(SupportsForward, HasParameters):
     def __init__(
         self,
@@ -43,6 +58,7 @@ class FFLayer(SupportsForward, HasParameters):
         return [self.weights, self.bias] if self.bias is not None else [self.weights]
 
 
+@set_str_repr("kernel_shape", "stride", "padding", "input_channels", "output_channels")
 class ConvLayer(SupportsForward, HasParameters):
     def __init__(
         self,
@@ -79,6 +95,7 @@ class ConvLayer(SupportsForward, HasParameters):
         return [self.kernel, self.bias] if self.bias is not None else [self.kernel]
 
 
+@set_str_repr("kernel_shape", "stride", "padding")
 class PoolingLayer(SupportsForward):
     ReduceMethods = Literal["max", "mean"]
     __reducemethodmap__: Final[dict[ReduceMethods, Callable]] = {

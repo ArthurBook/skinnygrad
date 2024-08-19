@@ -165,7 +165,7 @@ def main():
     parser.add_argument("--test_path", type=pathlib.Path, default=DATADIR / "mnist_test.csv", help="test file.")
     parser.add_argument("--epochs", type=int, default=5, help="Number of epochs to train the model for.")
     parser.add_argument("--learning_rate", type=float, default=0.01, help="Learning rate for training.")
-    parser.add_argument("--train_batch_size", type=int, default=32, help="Batch size for training.")
+    parser.add_argument("--train_batch_size", type=int, default=64, help="Batch size for training.")
     parser.add_argument("--eval_batch_size", type=int, default=256, help="Batch size for evaluation.")
     parser.add_argument("--eval_every_n_steps", type=int, default=50, help="Evaluate every n steps.")
     args = parser.parse_args()
