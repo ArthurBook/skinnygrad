@@ -27,7 +27,7 @@ print(y.realize())
 
 # LeNet-5 demo
 To test the engine, I've replicated the [LeNet-5 paper](http://vision.stanford.edu/cs598_spring07/papers/Lecun98.pdf) and trained it for 5 epochs, achieving same the 98% accuracy on the MNIST eval set [here](./examples/le_net.py). The forward pass built up by the skinnygrad engine is shown below:
-![lenet-fwd](./static/lenet_forward.png)
+![lenet-fwd](./static/lenet-forward.png)
 
 # Acknowledgements
 The design choices are inspired by [tinygrad](https://github.com/tinygrad/tinygrad).
