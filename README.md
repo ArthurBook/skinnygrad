@@ -11,9 +11,9 @@ pip install skinnygrad
 ```python
 import skinnygrad
 
-a = tensors.Tensor(((1, 2, 3)))
-b = tensors.Tensor(10)
-x = tensors.Tensor(((4,), (5,), (6,)))
+a = skinnygrad.Tensor(((1, 2, 3)))
+b = skinnygrad.Tensor(10)
+x = skinnygrad.Tensor(((4,), (5,), (6,)))
 y = a @ x + b
 print(y)
 # <skinnygrad.tensors.Tensor(

@@ -1,10 +1,16 @@
 [tool.poetry]
 name = "skinnygrad"
-version = "0.1.1"
+version = "0.1.3"
 description = "autodiff engine inspired by tinygrad"
 authors = ["Arthur <atte.book@gmail.com>"]
 readme = "README.md"
 packages = [{ include = "skinnygrad", from = "./src/" }]
+license = "MIT"
+keywords = ["autodiff", "automatic differentiation", "machine learning", "deep learning", "tensor"]
+
+[tool.poetry.urls]
+homepage = "https://github.com/ArthurBook/skinnygrad"
+repository = "https://github.com/ArthurBook/skinnygrad"
 
 [tool.poetry.dependencies]
 python = "^3.11"
